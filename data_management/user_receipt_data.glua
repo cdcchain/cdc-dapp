@@ -2,9 +2,9 @@
 
 type Storage = {
 	name string,
-	--ÔÊĞíµ÷ÓÃÕßÊı×é (µØÖ·)
+	--å…è®¸è°ƒç”¨è€…æ•°ç»„ (åœ°å€)
 	allowedAddrCaller: Array<string>,    
-	--ÔÊĞíµ÷ÓÃÕßÊı×é (ºÏÔ¼µØÖ·)
+	--å…è®¸è°ƒç”¨è€…æ•°ç»„ (åˆçº¦åœ°å€)
 	allowedConCaller: Array<string>
 }
 
@@ -16,7 +16,7 @@ function M:init()
 	self.storage.allowedConCaller = []
 end
 
--- ÅĞ¶ÏÊÇ·ñÎªÆÕÍ¨¹ÜÀíÔ±
+-- åˆ¤æ–­æ˜¯å¦ä¸ºæ™®é€šç®¡ç†å‘˜
 let function isGeneralAdmin()
 	let in_flag = false
 	let adminArray = get_general_admin()
@@ -28,7 +28,7 @@ let function isGeneralAdmin()
 	return in_flag
 end
 
--- ÅĞ¶ÏÊÇ·ñÒÑ¾­´æÔÚÓÚallowedAddrCallerÖĞ
+-- åˆ¤æ–­æ˜¯å¦å·²ç»å­˜åœ¨äºallowedAddrCallerä¸­
 let function isAddressAllowed(self: table, addr: string)
 	let in_flag = false
 	for k,v in pairs(self.storage.allowedAddrCaller) do
@@ -39,7 +39,7 @@ let function isAddressAllowed(self: table, addr: string)
 	return in_flag
 end
 
--- ÅĞ¶ÏÊÇ·ñÒÑ¾­´æÔÚÓÚallowedConCallerÖĞ
+-- åˆ¤æ–­æ˜¯å¦å·²ç»å­˜åœ¨äºallowedConCallerä¸­
 let function isContractAllowed(self: table, addr: string)
 	let in_flag = false
 	for k,v in pairs(self.storage.allowedConCaller) do
@@ -50,7 +50,7 @@ let function isContractAllowed(self: table, addr: string)
 	return in_flag
 end
 
--- Ìí¼Óµ½allowedAddrCallerÖĞ
+-- æ·»åŠ åˆ°allowedAddrCallerä¸­
 function M:addAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
 	if admin_flag == false
@@ -70,7 +70,7 @@ function M:addAddrCallerAllowed(addr: string)
 	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller] = addr
 end
 
--- Ìí¼Óµ½allowedConCallerÖĞ
+-- æ·»åŠ åˆ°allowedConCallerä¸­
 function M:addConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
 	if admin_flag == false
@@ -90,7 +90,7 @@ function M:addConCallerAllowed(addr: string)
 	self.storage.allowedConCaller[#self.storage.allowedConCaller] = addr
 end
 
--- ´ÓallowedAddrCallerÖĞÒÆ³ı
+-- ä»allowedAddrCallerä¸­ç§»é™¤
 function M:delAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
 	if admin_flag == false
@@ -110,7 +110,7 @@ function M:delAddrCallerAllowed(addr: string)
 	table.remove(self.storage.allowedAddrCaller, addr)
 end
 
--- ´ÓallowedConCallerÖĞÒÆ³ı
+-- ä»allowedConCallerä¸­ç§»é™¤
 function M:addConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
 	if admin_flag == false
@@ -130,12 +130,12 @@ function M:addConCallerAllowed(addr: string)
 	table.remove(self.storage.allowedConCaller, addr)
 end
 
--- ÅĞ¶Ïuser_receipt_dataÊı¾İÊÇ·ñ´æÔÚ
+-- åˆ¤æ–­user_receipt_dataæ•°æ®æ˜¯å¦å­˜åœ¨
 let isUserReceiptExisted(data: string)
 	return verify_cdcdata_hash(1, data)
 end
 
--- Ìí¼Óuser_receipt_dataÊı¾İ
+-- æ·»åŠ user_receipt_dataæ•°æ®
 function M:checkinUserReceiptHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
 	
@@ -178,7 +178,7 @@ function M:checkinUserReceiptHash(data: string)
 	end
 end
 
--- Ğ£Ñéuser_receipt_dataÊı¾İ
+-- æ ¡éªŒuser_receipt_dataæ•°æ®
 offline function M:verifyUserReceiptHash(data: string)
 	let in_hash_flag = isUserReceiptExisted(data)
 	if in_hash_flag == 10
@@ -195,7 +195,7 @@ offline function M:verifyUserReceiptHash(data: string)
 	return true
 end
 
--- É¾³ıuser_receipt_dataÊı¾İ
+-- åˆ é™¤user_receipt_dataæ•°æ®
 function M:abolishUserReceiptHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
 	
@@ -233,8 +233,8 @@ function M:abolishUserReceiptHash(data: string)
 	end
 end
 
--- ²éÑ¯xxxx offline
+-- æŸ¥è¯¢xxxx offline
 
 
--- ²éÑ¯xxxx offline
+-- æŸ¥è¯¢xxxx offline
 
