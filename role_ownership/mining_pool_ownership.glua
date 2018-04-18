@@ -1,21 +1,28 @@
 -- pool ownership contract
--- support event:  SubmitShareProposal
+-- support event:  SubmitShareProposal, SubmitOperatorProposal
 
-type State = 'NOT_EXIST' | 'IN_PROGRESS' | 'FINISHED' 
+type State = 'NOT_EXIST' | 'IN_PROGRESS'
 
 -- type Property: used to record properties of the pool
 type  Property = {
 
-    register: string           -- record the user who registered this contract
-    shareHolders: Map<int>     -- record pool share holders & the share (in 100 percent mode) it holds 
-    admins: Array<string>      -- record pool admins
-    operators: Array<string>   -- record pool operators
+    register: string                            -- record the user who registered this contract
+    shareHolders: Map<int>                      -- record pool share holders & the share (in 100 percent mode) it holds 
+    admins: Array<string>                       -- record pool admins
+    operators: Array<string>                    -- record pool operators
+    isShareInit: bool                           -- record whether init the share
 
-    isShareInit: bool          -- record whether init the share
-    proposalSharePercent: int  -- record the share percent to pass a proposal
-    proposalState: string      -- record change share proposal state
-    proposalInfo: Map<int>     -- recode change share proposal info
-    agreeInfo: Array<string>   -- record the info of agreeing the proposal
+
+    proposalSharePercent: int                   -- record the share percent to pass a share proposal
+    proposalShareState: string                  -- record change share proposal state
+    proposalShareInfo: Map<int>                 -- record change share proposal info
+    agreeProposalShareInfo: Array<string>       -- record the info of agreeing the share proposal
+
+
+    proposalOperatorPercent: int                -- record the share percent to pass a operator proposal
+    proposalOperatorState: string               -- record change operator proposal state
+    proposalOperatorInfo: Array<string>         -- record change operator proposal info
+    agreeProposalOperatorInfo: Array<string>    -- record the info of agreeing the operator proposal
 
 }
 
@@ -32,13 +39,17 @@ function  PoolContract:init()
     self.storage.shareHolders = {}
     self.storage.admins = {}
     self.storage.operators = {}
-
     self.storage.isShareInit = false
-    self.storage.proposalSharePercent = 50
-    self.storage.proposalState = 'NOT_EXIST'
-    proposalInfo = {}
-    agreeInfo = {}
 
+    self.storage.proposalSharePercent = 50
+    self.storage.proposalShareState = 'NOT_EXIST'
+    self.storage.proposalShareInfo = {}
+    self.storage.agreeProposalShareInfo = {}
+
+    self.storage.proposalOperatorPercent = 50
+    self.storage.proposalOperatorState = 'NOT_EXIST'
+    self.storage.proposalOperatorInfo = {}
+    self.storage.agreeProposalOperatorInfo = {}
 
 end
 
@@ -72,8 +83,25 @@ let function parse_init_share_args(arg: string)
 
 end
 
+-- parse args
+let function parse_args(arg: string)
+
+    if not arg then 
+        return error(INVALID_ARGS)
+    end
+
+    let parsed = string.split(arg, ',')
+
+    if not parsed then
+        return error(INVALID_ARGS)
+    end
+
+    return parsed    
+    
+end
+
 -- check whehter share have been inited
-let function is_share_inited()
+let function is_share_inited(self: table)
     
     if self.storage.isShareInit ~= false then
         return error("holder shares have been inited!")
@@ -83,7 +111,7 @@ end
 
 
 -- check whehter data operator on chain
-let function is_general_admin(self: table)
+let function is_general_admin()
 
     let res = verify_general_admin(caller_address)
 
@@ -93,13 +121,28 @@ let function is_general_admin(self: table)
 
 end
 
+-- check whehter contract admin
+let function is_contract_admin(self: table, name: stirng)
+    
+    for i, v in ipairs(self.storage.admins) do
+        if name == v then
+            return true
+        end
+
+    end
+
+    return false
+
+end
+
+
 -- set holder's shares, can only call once
 -- params: string 
    ex.: "name1, share1, name2, share2"
 function PoolContract:init_share(arg: string)
 
-    is_share_inited()
-    is_general_admin(self)
+    is_share_inited(self)
+    is_general_admin()
     
     -- check args
     if not arg then
@@ -109,17 +152,19 @@ function PoolContract:init_share(arg: string)
     let res = parse_init_share_args(arg)
 
     for i = 1, #res, 2 do
-        self.storage.admin[i] = res[i]
+        self.storage.admins[i] = res[i]
         self.storage.shareHolders[res[i]] = tointeger(res[i+1])
     end
+    
+    self.storage.isShareInit = true
 
 end
 
 
--- get the state of proposal
-let function get_proposal_state()
+-- get the state of share proposal
+let function get_share_proposal_state(self: table)
     
-    return self.storage.proposalState
+    return self.storage.proposalShareState
 
 end
 
@@ -127,19 +172,24 @@ end
 -- submit a proposal of changing holder shares
 function  PoolContract:submit_share_proposal(arg: string)
 
-    if 'IN_PROGRESS' == get_proposal_state() then
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' == get_share_proposal_state(self) then
         return error("Another proposal have been in progress!")
     end
 
     -- initialize proposal related
-    self.storage.agreeInfo = {}
-    self.storage.proposalInfo = {}
+    self.storage.agreeProposalShareInfo = {}
+    self.storage.proposalShareInfo = {}
 
     let res = parse_init_share_args(arg)
     for i = 1, #res, 2 do
         self.storage.proposalInfo[res[i]] = tointeger(res[i+1])
     end
 
+    self.storage.proposalShareState = 'IN_PROGRESS'
     emit SubmitShareProposal("submit a change share proposal")
 
 end
@@ -147,34 +197,35 @@ end
 
 
 
--- get the share percent to pass a proposal
-function PoolContract:get_share_percent_of_proposal(_: string)
+-- get the share percent to pass a share proposal
+function PoolContract:get_share_percent_of_share_proposal(_: string)
 
     return self.storage.proposalSharePercent
 
 end
 
--- set the share percent to pass a proposal
-function PoolContract:set_share_percent_of_proposal(arg: string)
-
-    if 'IN_PROGRESS' == get_proposal_state() then
-        return error("Proposal have been in progress, cannot set now!")
-    end
+-- set the share percent to pass a share proposal
+function PoolContract:set_share_percent_of_share_proposal(arg: string)
 
     is_general_admin()
+
+    if 'IN_PROGRESS' == get_share_proposal_state(self) then
+        return error("Proposal have been in progress, cannot set now!")
+    end    
 
     self.storage.proposalSharePercent = tointeger(arg)
     
 end
 
 -- change holder shares
-let function change_share()
+let function change_share(self)
 
-    if self.storage.shareHolders == {} or self.storage.proposalInfo == {} then
+    if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
         return error("share info something wrong!")
     end
 
-    for k, v in pairs(self.storage.proposalInfo) do
+
+    for k, v in pairs(self.storage.proposalShareInfo) do
         self.storage.shareHolders[k] = v
     end
 
@@ -184,23 +235,140 @@ end
 -- whehter agree the change share proposal
 function PoolContract:agree_share_proposal(_: string)
 
-    if 'IN_PROGRESS' ~= get_proposal_state() then
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= get_share_proposal_state(self) then
         return error("No proposal in progress!")
     end
 
-    self.storage.agreeInfo[caller_address] = 1
+    let current_agree_len = #self.storage.agreeProposalShareInfo
+    self.storage.agreeProposalShareInfo[current_agree_len + 1] = caller_address
 
 
     var total_agree_share int = 0
-    for i, v in ipairs(self.storage.agreeInfo) do
+    for i, v in ipairs(self.storage.agreeProposalShareInfo) do
         total_agree_share = total_agree_share + shareHolders[v]
     end
 
 
-    if total_agree_share > self:get_share_percent_of_proposal("") then
-        change_share()
+    if total_agree_share > self:get_share_percent_of_share_proposal("") then
+        change_share(self)
     end
 
+end
+
+
+-- get the state of operator proposal
+let function get_operator_proposal_state(self: table)
+    
+    return self.storage.proposalOperatorState
+
+end
+
+
+
+-- submit a proposal of changing contract operator
+function  PoolContract:submit_operator_proposal(arg: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' == get_operator_proposal_state(self) then
+        return error("Another proposal have been in progress!")
+    end
+
+    -- initialize proposal related
+    self.storage.agreeProposalOperatorInfo = {}
+    self.storage.proposalOperatorInfo = {}
+
+    let res = parse_args(arg)
+    for i = 1, #res do
+        self.storage.proposalOperatorInfo[i] = res[i]
+    end
+
+    emit SubmitOperatorProposal("submit a change share proposal")
+
+end
+
+
+
+-- get the share percent to pass a operator proposal
+function PoolContract:get_share_percent_of_operator_proposal(_: string)
+
+    return self.storage.proposalOperatorPercent
+
+end
+
+-- set the share percent to pass a operator proposal
+function PoolContract:set_share_percent_of_operator_proposal(arg: string)
+
+    is_general_admin()
+
+    if 'IN_PROGRESS' == get_operator_proposal_state(self) then
+        return error("Proposal have been in progress, cannot set now!")
+    end
+
+    self.storage.proposalOperatorPercent = tointeger(arg)
+    
+end
+
+
+-- change contract operator
+let function change_operator(self)
+
+    if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
+        return error("operator info something wrong!")
+    end
+
+    self.storage.operators = {}
+    for i, v in pairs(self.storage.proposalOperatorInfo) do
+        self.storage.operators[i] = v
+    end
+
+end
+
+
+-- whehter agree the change share proposal
+function PoolContract:agree_operator_proposal(_: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= get_share_proposal_state(self) then
+        return error("No proposal in progress!")
+    end
+
+    let current_agree_len = #self.storage.agreeProposalShareInfo
+    self.storage.agreeProposalShareInfo[current_agree_len + 1] = caller_address
+
+
+    var total_agree_share int = 0
+    for i, v in ipairs(self.storage.agreeProposalShareInfo) do
+        total_agree_share = total_agree_share + shareHolders[v]
+    end
+
+
+    if total_agree_share > self:get_share_percent_of_share_proposal("") then
+        change_operator(self)
+    end
+
+end
+
+
+offline function PoolContract:get_pool_share_info(_: string)
+    return tojsonstring(self.storage.shareHolders)
+end
+
+offline function PoolContract:get_contract_admin_info(_: string)
+    return tojsonstring(self.storage.admins)
+end
+
+offline function PoolContract:get_contract_operator_info(_: string)
+    return tojsonstring(self.storage.operators)
 end
 
 
