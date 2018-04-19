@@ -1,0 +1,251 @@
+type Storage = {
+	name: string,
+	--允许调用者数组 (发起调用的用户地址)
+	allowedAddrCaller: Array<string>,    
+	--允许调用者数组 (直接调用的合约地址)
+	allowedConCaller: Array<string>
+}
+
+var M = Contract<Storage>()
+
+function M:init()
+	self.storage.name = "ad_putting_feedback_data"
+	self.storage.allowedAddrCaller = []
+	self.storage.allowedConCaller = []
+end
+
+-- 判断是否为普通管理员
+let function isGeneralAdmin()
+	let adminArray = get_general_admin()
+	for k,v in pairs(adminArray) do
+		if caller_address == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 判断是否已经存在于allowedAddrCaller中
+let function isAddressAllowed(self: table, addr: string)
+	for k,v in pairs(totable(self.storage.allowedAddrCaller)) do
+		if addr == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 判断是否已经存在于allowedConCaller中
+let function isContractAllowed(self: table, addr: string)
+	let in_flag = false
+	for k,v in pairs(totable(self.storage.allowedConCaller)) do
+		if addr == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 添加到allowedAddrCaller中
+function M:addAddrCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_address(addr)
+	if valid_flag == false then
+		return error("invalid address")
+	end
+	
+	let in_flag = isAddressAllowed(self, addr)
+	if in_flag == true then
+		return error("has in allowedAddrCaller already")
+	end 
+	
+	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller+1] = addr
+end
+
+-- 添加到allowedConCaller中
+function M:addConCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_contract_address(addr)
+	if valid_flag == false then
+		return error("invalid contract address")
+	end
+	
+	let in_flag = isContractAllowed(self, addr)
+	if in_flag == true then
+		return error("has in allowedConCaller already")
+	end 
+	
+	self.storage.allowedConCaller[#self.storage.allowedConCaller+1] = addr
+end
+
+-- 从allowedAddrCaller中移除
+function M:delAddrCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_address(addr)
+	if valid_flag == false then
+		return error("invalid address")
+	end
+	
+	let in_flag = isAddressAllowed(self, addr)
+	if in_flag == false then
+		return error("not in allowedAddrCaller")
+	end 
+	
+	table.remove(self.storage.allowedAddrCaller, addr)
+end
+
+-- 从allowedConCaller中移除
+function M:addConCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_contract_address(addr)
+	if valid_flag == false then
+		return error("invalid contract address")
+	end
+	
+	let in_flag = isContractAllowed(self, addr)
+	if in_flag == false then
+		return error("not in allowedConCaller")
+	end 
+	
+	table.remove(self.storage.allowedConCaller, addr)
+end
+
+-- 判断ad_putting_feedback_data数据是否存在
+let function isAdPuttingFeedbackExisted(data: string)
+	let ret = verify_cdcdata_hash(3, data)
+	return ret
+end
+
+-- 添加ad_putting_feedback_data数据
+function M:checkinAdPuttingFeedbackHash(data: string)
+	let prev_contract = get_prev_call_frame_contract_address()
+	
+	let in_addr_flag = isAddressAllowed(self, caller_address)
+	var in_con_flag : bool = false
+	if prev_contract ~= "" and prev_contract ~= nil then
+		in_con_flag = isContractAllowed(self, prev_contract)
+	end
+	
+	if in_addr_flag == false and in_con_flag == false then
+		return error("has no authority to checkin ad_putting_feedback_data")
+	end
+
+	let parsed = string.split(data, '|')
+	if (not parsed) or (#parsed ~= 2) then
+		return error("data format error")
+	end
+	
+	let data_hash = parsed[1]
+	let data_remark = parsed[2]
+	
+	let in_hash_flag = isAdPuttingFeedbackExisted(tostring(data_hash))
+	if in_hash_flag == 10 then
+		return error("incorrect data_hash length")
+	elseif in_hash_flag == 11 then
+		return error("incorrect data_hash")
+	elseif in_hash_flag == 3 then
+		return error("incorrect cdcdata type")
+	elseif in_hash_flag == 0 then
+		return error("data_hash has existed already")
+	elseif in_hash_flag ~= 2 then
+		return error("isAdPuttingFeedbackExisted: internal error")
+	end
+	
+	let ret_flag = checkin_cdcdata_hash(3, tostring(data_hash), tostring(data_remark))
+	if ret_flag == 2 then
+		return error("data_hash has existed already")
+	elseif ret_flag ~= 0 then
+		return error("checkin_cdcdata_hash: internal error")
+	end
+end
+
+-- 校验ad_putting_feedback_data数据
+offline function M:verifyAdPuttingFeedbackHash(data: string)
+	let in_hash_flag = isAdPuttingFeedbackExisted(data)
+	if in_hash_flag == 10 then
+		return error("incorrect data_hash length")
+	elseif in_hash_flag == 11 then
+		return error("incorrect data_hash")
+	elseif in_hash_flag == 3 then
+		return error("incorrect cdcdata type")
+	elseif in_hash_flag == 2 then
+		return false
+	elseif in_hash_flag ~= 0 then
+		return error("isAdPuttingFeedbackExisted: internal error")
+	end
+	return true
+end
+
+-- 删除ad_putting_feedback_data数据
+function M:abolishAdPuttingFeedbackHash(data: string)
+	let prev_contract = get_prev_call_frame_contract_address()
+	
+	let in_addr_flag = isAddressAllowed(self, caller_address)
+	var in_con_flag : bool = false;
+	if prev_contract ~= "" and prev_contract ~= nil then
+		in_con_flag = isContractAllowed(self, prev_contract)
+	end
+	
+	if in_addr_flag == false and in_con_flag == false then
+		return error("has no authority to checkin ad_putting_feedback_data")
+	end
+	
+	let data_hash = data
+	let in_hash_flag = isAdPuttingFeedbackExisted(data_hash)
+	if in_hash_flag == 10 then
+		return error("incorrect data_hash length")
+	elseif in_hash_flag == 11 then
+		return error("incorrect data_hash")
+	elseif in_hash_flag == 3 then
+		return error("incorrect cdcdata type")
+	elseif in_hash_flag == 2 then
+		return error("data_hash not existed")
+	elseif in_hash_flag ~= 0 then
+		return error("isAdPuttingFeedbackExisted: internal error")
+	end
+	
+	let ret_flag = abolish_cdcdata_hash(3, data_hash)
+	if ret_flag == 2 then
+		return error("data_hash not existed")
+	elseif ret_flag == 3 then
+		return error("incorrect cdcdata type")
+	elseif ret_flag ~= 0 then
+		return error("abolish_cdcdata_hash: internal error")
+	end
+end
+
+-- 查询合约名
+offline function M:getContractName()
+	let ret = self.storage.name
+	return ret
+end
+
+-- 查询allowedAddrCaller
+offline function M:getallowedAddrCaller()
+	let ret = tojsonstring(self.storage.allowedAddrCaller)
+	return ret
+end
+
+-- 查询allowedConCaller
+offline function M:getallowedConCaller()
+	let ret = tojsonstring(self.storage.allowedConCaller)
+	return ret
+end
+
+return M

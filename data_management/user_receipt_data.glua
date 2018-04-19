@@ -192,7 +192,6 @@ offline function M:verifyUserReceiptHash(data: string)
 	return true
 end
 
-
 -- 删除user_receipt_data数据
 function M:abolishUserReceiptHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
