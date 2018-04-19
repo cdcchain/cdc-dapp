@@ -63,7 +63,7 @@ function M:addAddrCallerAllowed(addr: string)
 		return error("has in allowedAddrCaller already")
 	end 
 	
-	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller] = addr
+	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller+1] = addr
 end
 
 -- 添加到allowedConCaller中
@@ -83,7 +83,7 @@ function M:addConCallerAllowed(addr: string)
 		return error("has in allowedConCaller already")
 	end 
 	
-	self.storage.allowedConCaller[#self.storage.allowedConCaller] = addr
+	self.storage.allowedConCaller[#self.storage.allowedConCaller+1] = addr
 end
 
 -- 从allowedAddrCaller中移除
