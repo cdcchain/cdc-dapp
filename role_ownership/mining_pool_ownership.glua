@@ -6,23 +6,23 @@ type State = 'NOT_EXIST' | 'IN_PROGRESS'
 -- type Property: used to record properties of the pool
 type  Property = {
 
-    register: string                            -- record the user who registered this contract
-    shareHolders: Map<int>                      -- record pool share holders & the share (in 100 percent mode) it holds 
-    admins: Array<string>                       -- record pool admins
-    operators: Array<string>                    -- record pool operators
-    isShareInit: bool                           -- record whether init the share
+    register: string,                            -- record the user who registered this contract
+    shareHolders: Map<int>,                      -- record pool share holders & the share (in 100 percent mode) it holds 
+    admins: Array<string>,                       -- record pool admins
+    operators: Array<string>,                    -- record pool operators
+    isShareInit: bool,                           -- record whether init the share
 
 
-    proposalSharePercent: int                   -- record the share percent to pass a share proposal
-    proposalShareState: string                  -- record change share proposal state
-    proposalShareInfo: Map<int>                 -- record change share proposal info
-    agreeProposalShareInfo: Array<string>       -- record the info of agreeing the share proposal
+    proposalSharePercent: int,                   -- record the share percent to pass a share proposal
+    proposalShareState: string,                  -- record change share proposal state
+    proposalShareInfo: Map<int>,                 -- record change share proposal info
+    agreeProposalShareInfo: Array<string>,       -- record the info of agreeing the share proposal
 
 
-    proposalOperatorPercent: int                -- record the share percent to pass a operator proposal
-    proposalOperatorState: string               -- record change operator proposal state
-    proposalOperatorInfo: Array<string>         -- record change operator proposal info
-    agreeProposalOperatorInfo: Array<string>    -- record the info of agreeing the operator proposal
+    proposalOperatorPercent: int,                -- record the share percent to pass a operator proposal
+    proposalOperatorState: string,               -- record change operator proposal state
+    proposalOperatorInfo: Array<string>,         -- record change operator proposal info
+    agreeProposalOperatorInfo: Array<string>     -- record the info of agreeing the operator proposal
 
 }
 
@@ -37,19 +37,19 @@ function  PoolContract:init()
 
     self.storage.register = caller_address    
     self.storage.shareHolders = {}
-    self.storage.admins = {}
-    self.storage.operators = {}
+    self.storage.admins = []
+    self.storage.operators = []
     self.storage.isShareInit = false
 
     self.storage.proposalSharePercent = 50
     self.storage.proposalShareState = 'NOT_EXIST'
     self.storage.proposalShareInfo = {}
-    self.storage.agreeProposalShareInfo = {}
+    self.storage.agreeProposalShareInfo = []
 
     self.storage.proposalOperatorPercent = 50
     self.storage.proposalOperatorState = 'NOT_EXIST'
-    self.storage.proposalOperatorInfo = {}
-    self.storage.agreeProposalOperatorInfo = {}
+    self.storage.proposalOperatorInfo = []
+    self.storage.agreeProposalOperatorInfo = []
 
 end
 
@@ -63,17 +63,19 @@ let function parse_init_share_args(arg: string)
     end
 
     let parsed = string.split(arg, ',')
-    if (not parsed) or ((#parsed) % 2 ~= 0) then
+    if (not parsed) or ((#parsed % 2) ~= 0) then
         return error(INVALID_ARGS)
     end
 
     -- judge whether total shares is 100 and address is valid
-    var total_share int = 0
-    for i = 1, #res, 2 do
-        is_valid_address(parsed[i])
+    var total_share: int = 0
+    for i = 1, #parsed, 2 do
+        if not is_valid_address(tostring(parsed[i])) then
+            return error(INVALID_ARGS.." invalid address!")
+        end
         total_share = total_share + tointeger(parsed[i+1])
     end
-
+   
     if total_share ~= 100 then
         return error(INVALID_ARGS.." total share is not 100%!")
     end
@@ -122,9 +124,9 @@ let function is_general_admin()
 end
 
 -- check whehter contract admin
-let function is_contract_admin(self: table, name: stirng)
-    
-    for i, v in ipairs(self.storage.admins) do
+let function is_contract_admin(self: table, name: string)
+
+    for i, v in ipairs(totable(self.storage.admins)) do
         if name == v then
             return true
         end
@@ -138,7 +140,7 @@ end
 
 -- set holder's shares, can only call once
 -- params: string 
-   ex.: "name1, share1, name2, share2"
+--   ex.: "name1, share1, name2, share2"
 function PoolContract:init_share(arg: string)
 
     is_share_inited(self)
@@ -149,11 +151,14 @@ function PoolContract:init_share(arg: string)
         return error(INVALID_ARGS)
     end
 
-    let res = parse_init_share_args(arg)
+    let res: Array<string> = totable(parse_init_share_args(arg))
 
+    var arr_index: int = 0
     for i = 1, #res, 2 do
-        self.storage.admins[i] = res[i]
-        self.storage.shareHolders[res[i]] = tointeger(res[i+1])
+        arr_index = arr_index + 1
+        let val = res[i]
+        self.storage.admins[arr_index] = val
+        self.storage.shareHolders[val] = tointeger(res[i+1])
     end
     
     self.storage.isShareInit = true
@@ -181,12 +186,13 @@ function  PoolContract:submit_share_proposal(arg: string)
     end
 
     -- initialize proposal related
-    self.storage.agreeProposalShareInfo = {}
+    self.storage.agreeProposalShareInfo = []
     self.storage.proposalShareInfo = {}
 
-    let res = parse_init_share_args(arg)
+    let res: Array<string> = totable(parse_init_share_args(arg))
     for i = 1, #res, 2 do
-        self.storage.proposalInfo[res[i]] = tointeger(res[i+1])
+        let val = res[i]
+        self.storage.proposalShareInfo[val] = tointeger(res[i+1])
     end
 
     self.storage.proposalShareState = 'IN_PROGRESS'
@@ -225,7 +231,7 @@ let function change_share(self)
     end
 
 
-    for k, v in pairs(self.storage.proposalShareInfo) do
+    for k, v in pairs(totable(self.storage.proposalShareInfo)) do
         self.storage.shareHolders[k] = v
     end
 
@@ -247,14 +253,15 @@ function PoolContract:agree_share_proposal(_: string)
     self.storage.agreeProposalShareInfo[current_agree_len + 1] = caller_address
 
 
-    var total_agree_share int = 0
+    var total_agree_share: int = 0
     for i, v in ipairs(self.storage.agreeProposalShareInfo) do
-        total_agree_share = total_agree_share + shareHolders[v]
+        total_agree_share = total_agree_share + self.storage.shareHolders[v]
     end
 
 
-    if total_agree_share > self:get_share_percent_of_share_proposal("") then
+    if total_agree_share > tointeger(self:get_share_percent_of_share_proposal("")) then
         change_share(self)
+        self.storage.proposalShareState = 'NOT_EXIST'
     end
 
 end
@@ -281,14 +288,15 @@ function  PoolContract:submit_operator_proposal(arg: string)
     end
 
     -- initialize proposal related
-    self.storage.agreeProposalOperatorInfo = {}
-    self.storage.proposalOperatorInfo = {}
+    self.storage.agreeProposalOperatorInfo = []
+    self.storage.proposalOperatorInfo = []
 
-    let res = parse_args(arg)
+    let res: Array<string> = totable(parse_args(arg))
     for i = 1, #res do
         self.storage.proposalOperatorInfo[i] = res[i]
     end
 
+    self.storage.proposalOperatorState = 'IN_PROGRESS'
     emit SubmitOperatorProposal("submit a change share proposal")
 
 end
@@ -324,7 +332,7 @@ let function change_operator(self)
     end
 
     self.storage.operators = {}
-    for i, v in pairs(self.storage.proposalOperatorInfo) do
+    for i, v in pairs(totable(self.storage.proposalOperatorInfo)) do
         self.storage.operators[i] = v
     end
 
@@ -338,40 +346,56 @@ function PoolContract:agree_operator_proposal(_: string)
         return error("you are not contract admin, can't call this function!")
     end
 
-    if 'IN_PROGRESS' ~= get_share_proposal_state(self) then
+    if 'IN_PROGRESS' ~= get_operator_proposal_state(self) then
         return error("No proposal in progress!")
     end
 
-    let current_agree_len = #self.storage.agreeProposalShareInfo
-    self.storage.agreeProposalShareInfo[current_agree_len + 1] = caller_address
+    let current_agree_len = #self.storage.agreeProposalOperatorInfo
+    self.storage.agreeProposalOperatorInfo[current_agree_len + 1] = caller_address
 
 
-    var total_agree_share int = 0
-    for i, v in ipairs(self.storage.agreeProposalShareInfo) do
-        total_agree_share = total_agree_share + shareHolders[v]
+    var total_agree_share: int = 0
+    for i, v in ipairs(self.storage.agreeProposalOperatorInfo) do
+        total_agree_share = total_agree_share + tointeger(self.storage.shareHolders[v])
     end
 
 
-    if total_agree_share > self:get_share_percent_of_share_proposal("") then
+    if total_agree_share > tointeger(self:get_share_percent_of_share_proposal("")) then
         change_operator(self)
+        self.storage.proposalOperatorState = 'NOT_EXIST'
     end
 
 end
 
 
 offline function PoolContract:get_pool_share_info(_: string)
-    return tojsonstring(self.storage.shareHolders)
+    let res = tojsonstring(self.storage.shareHolders)
+    return res
 end
 
 offline function PoolContract:get_contract_admin_info(_: string)
-    return tojsonstring(self.storage.admins)
+    print(#self.storage.admins)
+    let res = tojsonstring(self.storage.admins)
+    return res
 end
 
 offline function PoolContract:get_contract_operator_info(_: string)
-    return tojsonstring(self.storage.operators)
+    let res = tojsonstring(self.storage.operators)
+    return res
 end
 
 
+offline function PoolContract:get_share_proposal_info(_: string)
+    let res = get_share_proposal_state(self)
+    return res
+end
+
+offline function PoolContract:get_operator_proposal_info(_: string)
+    let res = get_operator_proposal_state(self)
+    return res
+end
+
+return PoolContract
 
 
 
