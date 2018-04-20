@@ -1,4 +1,4 @@
--- pool ownership contract
+-- mining pool ownership contract
 -- support event:  SubmitShareProposal, SubmitOperatorProposal
 
 type State = 'NOT_EXIST' | 'IN_PROGRESS'

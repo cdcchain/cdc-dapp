@@ -1,0 +1,409 @@
+-- arbitrator ownership contract
+-- support event:  SubmitShareProposal, SubmitOperatorProposal
+
+type State = 'NOT_EXIST' | 'IN_PROGRESS'
+
+-- type Property: used to record properties of the arbitrator
+type  Property = {
+
+    register: string,                            -- record the user who registered this contract
+    shareHolders: Map<int>,                      -- record arbitrator share holders & the share (in 100 percent mode) it holds 
+    admins: Array<string>,                       -- record arbitrator admins
+    operators: Array<string>,                    -- record arbitrator operators
+    isShareInit: bool,                           -- record whether init the share
+
+
+    proposalSharePercent: int,                   -- record the share percent to pass a share proposal
+    proposalShareState: string,                  -- record change share proposal state
+    proposalShareInfo: Map<int>,                 -- record change share proposal info
+    agreeProposalShareInfo: Array<string>,       -- record the info of agreeing the share proposal
+
+
+    proposalOperatorPercent: int,                -- record the share percent to pass a operator proposal
+    proposalOperatorState: string,               -- record change operator proposal state
+    proposalOperatorInfo: Array<string>,         -- record change operator proposal info
+    agreeProposalOperatorInfo: Array<string>     -- record the info of agreeing the operator proposal
+
+}
+
+
+
+var ArbitratorContract = Contract<Property>()
+
+var INVALID_ARGS = "invalid args!"
+
+
+function  ArbitratorContract:init()
+
+    self.storage.register = caller_address    
+    self.storage.shareHolders = {}
+    self.storage.admins = []
+    self.storage.operators = []
+    self.storage.isShareInit = false
+
+    self.storage.proposalSharePercent = 50
+    self.storage.proposalShareState = 'NOT_EXIST'
+    self.storage.proposalShareInfo = {}
+    self.storage.agreeProposalShareInfo = []
+
+    self.storage.proposalOperatorPercent = 50
+    self.storage.proposalOperatorState = 'NOT_EXIST'
+    self.storage.proposalOperatorInfo = []
+    self.storage.agreeProposalOperatorInfo = []
+
+end
+
+
+-- parse init_share args 
+-- ex.: parse a,b,c,d format string to [a,b,c,d]
+let function parse_init_share_args(arg: string)
+
+    if not arg then
+        return error(INVALID_ARGS)
+    end
+
+    let parsed = string.split(arg, ',')
+    if (not parsed) or ((#parsed % 2) ~= 0) then
+        return error(INVALID_ARGS)
+    end
+
+    -- judge whether total shares is 100 and address is valid
+    var total_share: int = 0
+    for i = 1, #parsed, 2 do
+        if not is_valid_address(tostring(parsed[i])) then
+            return error(INVALID_ARGS.." invalid address!")
+        end
+        total_share = total_share + tointeger(parsed[i+1])
+    end
+   
+    if total_share ~= 100 then
+        return error(INVALID_ARGS.." total share is not 100%!")
+    end
+
+
+    return parsed
+
+end
+
+-- parse args
+let function parse_args(arg: string)
+
+    if not arg then 
+        return error(INVALID_ARGS)
+    end
+
+    let parsed = string.split(arg, ',')
+
+    if not parsed then
+        return error(INVALID_ARGS)
+    end
+
+    return parsed    
+    
+end
+
+-- check whehter share have been inited
+let function is_share_inited(self: table)
+    
+    if self.storage.isShareInit ~= false then
+        return error("holder shares have been inited!")
+    end
+
+end
+
+
+-- check whehter data operator on chain
+let function is_general_admin()
+
+    let res = verify_general_admin(caller_address)
+
+    if res ~= 0 then
+        return error("you are not general admin, can't call this function!")
+    end
+
+end
+
+-- check whehter contract admin
+let function is_contract_admin(self: table, name: string)
+
+    for i, v in ipairs(totable(self.storage.admins)) do
+        if name == v then
+            return true
+        end
+
+    end
+
+    return false
+
+end
+
+
+-- set holder's shares, can only call once
+-- params: string 
+--   ex.: "name1, share1, name2, share2"
+function ArbitratorContract:init_share(arg: string)
+
+    is_share_inited(self)
+    is_general_admin()
+    
+    -- check args
+    if not arg then
+        return error(INVALID_ARGS)
+    end
+
+    let res: Array<string> = totable(parse_init_share_args(arg))
+
+    var arr_index: int = 0
+    for i = 1, #res, 2 do
+        arr_index = arr_index + 1
+        let val = res[i]
+        self.storage.admins[arr_index] = val
+        self.storage.shareHolders[val] = tointeger(res[i+1])
+    end
+    
+    self.storage.isShareInit = true
+
+end
+
+
+-- get the state of share proposal
+let function get_share_proposal_state(self: table)
+    
+    return self.storage.proposalShareState
+
+end
+
+
+-- submit a proposal of changing holder shares
+function  ArbitratorContract:submit_share_proposal(arg: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' == get_share_proposal_state(self) then
+        return error("Another proposal have been in progress!")
+    end
+
+    -- initialize proposal related
+    self.storage.agreeProposalShareInfo = []
+    self.storage.proposalShareInfo = {}
+
+    let res: Array<string> = totable(parse_init_share_args(arg))
+    for i = 1, #res, 2 do
+        let val = res[i]
+        self.storage.proposalShareInfo[val] = tointeger(res[i+1])
+    end
+
+    self.storage.proposalShareState = 'IN_PROGRESS'
+    emit SubmitShareProposal("submit a change share proposal")
+
+end
+
+
+
+
+-- get the share percent to pass a share proposal
+function ArbitratorContract:get_share_percent_of_share_proposal(_: string)
+
+    return self.storage.proposalSharePercent
+
+end
+
+-- set the share percent to pass a share proposal
+function ArbitratorContract:set_share_percent_of_share_proposal(arg: string)
+
+    is_general_admin()
+
+    if 'IN_PROGRESS' == get_share_proposal_state(self) then
+        return error("Proposal have been in progress, cannot set now!")
+    end    
+
+    self.storage.proposalSharePercent = tointeger(arg)
+    
+end
+
+-- change holder shares
+let function change_share(self)
+
+    if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
+        return error("share info something wrong!")
+    end
+
+
+    for k, v in pairs(totable(self.storage.proposalShareInfo)) do
+        self.storage.shareHolders[k] = v
+    end
+
+end
+
+
+-- whehter agree the change share proposal
+function ArbitratorContract:agree_share_proposal(_: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= get_share_proposal_state(self) then
+        return error("No proposal in progress!")
+    end
+
+    let current_agree_len = #self.storage.agreeProposalShareInfo
+    self.storage.agreeProposalShareInfo[current_agree_len + 1] = caller_address
+
+
+    var total_agree_share: int = 0
+    for i, v in ipairs(self.storage.agreeProposalShareInfo) do
+        total_agree_share = total_agree_share + self.storage.shareHolders[v]
+    end
+
+
+    if total_agree_share > tointeger(self:get_share_percent_of_share_proposal("")) then
+        change_share(self)
+        self.storage.proposalShareState = 'NOT_EXIST'
+    end
+
+end
+
+
+-- get the state of operator proposal
+let function get_operator_proposal_state(self: table)
+    
+    return self.storage.proposalOperatorState
+
+end
+
+
+
+-- submit a proposal of changing contract operator
+function  ArbitratorContract:submit_operator_proposal(arg: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' == get_operator_proposal_state(self) then
+        return error("Another proposal have been in progress!")
+    end
+
+    -- initialize proposal related
+    self.storage.agreeProposalOperatorInfo = []
+    self.storage.proposalOperatorInfo = []
+
+    let res: Array<string> = totable(parse_args(arg))
+    for i = 1, #res do
+        self.storage.proposalOperatorInfo[i] = res[i]
+    end
+
+    self.storage.proposalOperatorState = 'IN_PROGRESS'
+    emit SubmitOperatorProposal("submit a change share proposal")
+
+end
+
+
+
+-- get the share percent to pass a operator proposal
+function ArbitratorContract:get_share_percent_of_operator_proposal(_: string)
+
+    return self.storage.proposalOperatorPercent
+
+end
+
+-- set the share percent to pass a operator proposal
+function ArbitratorContract:set_share_percent_of_operator_proposal(arg: string)
+
+    is_general_admin()
+
+    if 'IN_PROGRESS' == get_operator_proposal_state(self) then
+        return error("Proposal have been in progress, cannot set now!")
+    end
+
+    self.storage.proposalOperatorPercent = tointeger(arg)
+    
+end
+
+
+-- change contract operator
+let function change_operator(self)
+
+    if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
+        return error("operator info something wrong!")
+    end
+
+    self.storage.operators = {}
+    for i, v in pairs(totable(self.storage.proposalOperatorInfo)) do
+        self.storage.operators[i] = v
+    end
+
+end
+
+
+-- whehter agree the change share proposal
+function ArbitratorContract:agree_operator_proposal(_: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= get_operator_proposal_state(self) then
+        return error("No proposal in progress!")
+    end
+
+    let current_agree_len = #self.storage.agreeProposalOperatorInfo
+    self.storage.agreeProposalOperatorInfo[current_agree_len + 1] = caller_address
+
+
+    var total_agree_share: int = 0
+    for i, v in ipairs(self.storage.agreeProposalOperatorInfo) do
+        total_agree_share = total_agree_share + tointeger(self.storage.shareHolders[v])
+    end
+
+
+    if total_agree_share > tointeger(self:get_share_percent_of_share_proposal("")) then
+        change_operator(self)
+        self.storage.proposalOperatorState = 'NOT_EXIST'
+    end
+
+end
+
+
+offline function ArbitratorContract:get_arbitrator_share_info(_: string)
+    let res = tojsonstring(self.storage.shareHolders)
+    return res
+end
+
+offline function ArbitratorContract:get_contract_admin_info(_: string)
+    print(#self.storage.admins)
+    let res = tojsonstring(self.storage.admins)
+    return res
+end
+
+offline function ArbitratorContract:get_contract_operator_info(_: string)
+    let res = tojsonstring(self.storage.operators)
+    return res
+end
+
+
+offline function ArbitratorContract:get_share_proposal_info(_: string)
+    let res = get_share_proposal_state(self)
+    return res
+end
+
+offline function ArbitratorContract:get_operator_proposal_info(_: string)
+    let res = get_operator_proposal_state(self)
+    return res
+end
+
+return ArbitratorContract
+
+
+
+
+
+
+
+
+
+
+
