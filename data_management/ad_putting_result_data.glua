@@ -173,6 +173,8 @@ function M:checkinAdPuttingResultHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("checkin_cdcdata_hash: internal error")
 	end
+	
+	emit checkinAdPuttingResultHash("checkin ad putting result hash")
 end
 
 -- 校验ad_putting_result_data数据
@@ -228,6 +230,8 @@ function M:abolishAdPuttingResultHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("abolish_cdcdata_hash: internal error")
 	end
+	
+	emit abolishAdPuttingResultHash("abolish ad putting result hash")
 end
 
 -- 查询合约名

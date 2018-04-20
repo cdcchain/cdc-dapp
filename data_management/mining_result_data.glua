@@ -173,6 +173,8 @@ function M:checkinMiningResultHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("checkin_cdcdata_hash: internal error")
 	end
+	
+	emit checkinMiningResultHash("checkin mining result hash")
 end
 
 -- 校验mining_result_data数据
@@ -228,6 +230,8 @@ function M:abolishMiningResultHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("abolish_cdcdata_hash: internal error")
 	end
+	
+	emit abolishMiningResultHash("abolish mining result hash")
 end
 
 -- 查询合约名
