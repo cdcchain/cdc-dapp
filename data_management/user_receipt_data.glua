@@ -1,109 +1,105 @@
-
-
 type Storage = {
-	name string,
-	--允许调用者数组 (地址)
+	name: string,
+	--允许调用者数组 (发起调用的用户地址)
 	allowedAddrCaller: Array<string>,    
-	--允许调用者数组 (合约地址)
+	--允许调用者数组 (直接调用的合约地址)
 	allowedConCaller: Array<string>
 }
 
 var M = Contract<Storage>()
 
 function M:init()
-	self.name = "user_receipt_data"
+	self.storage.name = "user_receipt_data"
 	self.storage.allowedAddrCaller = []
 	self.storage.allowedConCaller = []
 end
 
 -- 判断是否为普通管理员
 let function isGeneralAdmin()
-	let in_flag = false
 	let adminArray = get_general_admin()
 	for k,v in pairs(adminArray) do
 		if caller_address == v then
-			in_flag = true
+			return true
 		end
 	end
-	return in_flag
+	return false
 end
 
 -- 判断是否已经存在于allowedAddrCaller中
 let function isAddressAllowed(self: table, addr: string)
-	let in_flag = false
-	for k,v in pairs(self.storage.allowedAddrCaller) do
+	for k,v in pairs(totable(self.storage.allowedAddrCaller)) do
 		if addr == v then
-			in_flag = true
+			return true
 		end
 	end
-	return in_flag
+	return false
 end
 
 -- 判断是否已经存在于allowedConCaller中
 let function isContractAllowed(self: table, addr: string)
 	let in_flag = false
-	for k,v in pairs(self.storage.allowedConCaller) do
+	for k,v in pairs(totable(self.storage.allowedConCaller)) do
 		if addr == v then
-			in_flag = true
+			return true
 		end
 	end
-	return in_flag
+	return false
 end
 
 -- 添加到allowedAddrCaller中
 function M:addAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
-	if admin_flag == false
+	if admin_flag == false then
 		return error("not general admin, and has no authority")
 	end
 
 	let valid_flag = is_valid_address(addr)
-	if valid_flag == false
+	if valid_flag == false then
 		return error("invalid address")
 	end
 	
 	let in_flag = isAddressAllowed(self, addr)
-	if in_flag == true
+	if in_flag == true then
 		return error("has in allowedAddrCaller already")
 	end 
 	
-	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller] = addr
+	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller+1] = addr
 end
 
 -- 添加到allowedConCaller中
 function M:addConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
-	if admin_flag == false
+	if admin_flag == false then
 		return error("not general admin, and has no authority")
 	end
 
 	let valid_flag = is_valid_contract_address(addr)
-	if valid_flag == false
+	if valid_flag == false then
 		return error("invalid contract address")
 	end
 	
 	let in_flag = isContractAllowed(self, addr)
-	if in_flag == true
+	if in_flag == true then
 		return error("has in allowedConCaller already")
 	end 
 	
-	self.storage.allowedConCaller[#self.storage.allowedConCaller] = addr
+	self.storage.allowedConCaller[#self.storage.allowedConCaller+1] = addr
 end
 
 -- 从allowedAddrCaller中移除
 function M:delAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
-	if admin_flag == false
+	if admin_flag == false then
 		return error("not general admin, and has no authority")
 	end
 
 	let valid_flag = is_valid_address(addr)
-	if valid_flag == false
+	if valid_flag == false then
 		return error("invalid address")
 	end
 	
 	let in_flag = isAddressAllowed(self, addr)
-	if in_flag == false
+	if in_flag == false then
 		return error("not in allowedAddrCaller")
 	end 
 	
@@ -113,17 +109,17 @@ end
 -- 从allowedConCaller中移除
 function M:addConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
-	if admin_flag == false
+	if admin_flag == false then
 		return error("not general admin, and has no authority")
 	end
 
 	let valid_flag = is_valid_contract_address(addr)
-	if valid_flag == false
+	if valid_flag == false then
 		return error("invalid contract address")
 	end
 	
 	let in_flag = isContractAllowed(self, addr)
-	if in_flag == false
+	if in_flag == false then
 		return error("not in allowedConCaller")
 	end 
 	
@@ -131,8 +127,9 @@ function M:addConCallerAllowed(addr: string)
 end
 
 -- 判断user_receipt_data数据是否存在
-let isUserReceiptExisted(data: string)
-	return verify_cdcdata_hash(1, data)
+let function isUserReceiptExisted(data: string)
+	let ret = verify_cdcdata_hash(1, data)
+	return ret
 end
 
 -- 添加user_receipt_data数据
@@ -140,16 +137,16 @@ function M:checkinUserReceiptHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
 	
 	let in_addr_flag = isAddressAllowed(self, caller_address)
-	let in_con_flag = false;
-	if con_caller ~= "" and con_caller ~= nil
+	var in_con_flag : bool = false
+	if prev_contract ~= "" and prev_contract ~= nil then
 		in_con_flag = isContractAllowed(self, prev_contract)
 	end
 	
-	if in_addr_flag == false and in_con_flag == false
+	if in_addr_flag == false and in_con_flag == false then
 		return error("has no authority to checkin user_receipt_data")
 	end
 
-	let parsed = string.split(arg, '|')
+	let parsed = string.split(data, '|')
 	if (not parsed) or (#parsed ~= 2) then
 		return error("data format error")
 	end
@@ -157,23 +154,23 @@ function M:checkinUserReceiptHash(data: string)
 	let data_hash = parsed[1]
 	let data_remark = parsed[2]
 	
-	let in_hash_flag = isUserReceiptExisted(data_hash)
-	if in_hash_flag == 10
+	let in_hash_flag = isUserReceiptExisted(tostring(data_hash))
+	if in_hash_flag == 10 then
 		return error("incorrect data_hash length")
-	else if in_hash_flag == 11
+	elseif in_hash_flag == 11 then
 		return error("incorrect data_hash")
-	else if in_hash_flag == 3
+	elseif in_hash_flag == 3 then
 		return error("incorrect cdcdata type")
-	else if in_hash_flag == 0
+	elseif in_hash_flag == 0 then
 		return error("data_hash has existed already")
-	else if in_hash_flag ~= 2
+	elseif in_hash_flag ~= 2 then
 		return error("isUserReceiptExisted: internal error")
 	end
 	
-	let ret_flag = checkin_cdcdata_hash(1, data_hash, data_remark)
-	if ret_flag == 2
+	let ret_flag = checkin_cdcdata_hash(1, tostring(data_hash), tostring(data_remark))
+	if ret_flag == 2 then
 		return error("data_hash has existed already")
-	else if ret_flag ~= 0
+	elseif ret_flag ~= 0 then
 		return error("checkin_cdcdata_hash: internal error")
 	end
 end
@@ -181,15 +178,15 @@ end
 -- 校验user_receipt_data数据
 offline function M:verifyUserReceiptHash(data: string)
 	let in_hash_flag = isUserReceiptExisted(data)
-	if in_hash_flag == 10
+	if in_hash_flag == 10 then
 		return error("incorrect data_hash length")
-	else if in_hash_flag == 11
+	elseif in_hash_flag == 11 then
 		return error("incorrect data_hash")
-	else if in_hash_flag == 3
+	elseif in_hash_flag == 3 then
 		return error("incorrect cdcdata type")
-	else if in_hash_flag == 2
+	elseif in_hash_flag == 2 then
 		return false
-	else if in_hash_flag ~= 0
+	elseif in_hash_flag ~= 0 then
 		return error("isUserReceiptExisted: internal error")
 	end
 	return true
@@ -200,41 +197,55 @@ function M:abolishUserReceiptHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
 	
 	let in_addr_flag = isAddressAllowed(self, caller_address)
-	let in_con_flag = false;
-	if con_caller ~= "" and con_caller ~= nil
+	var in_con_flag : bool = false;
+	if prev_contract ~= "" and prev_contract ~= nil then
 		in_con_flag = isContractAllowed(self, prev_contract)
 	end
 	
-	if in_addr_flag == false and in_con_flag == false
+	if in_addr_flag == false and in_con_flag == false then
 		return error("has no authority to checkin user_receipt_data")
 	end
 	
 	let data_hash = data
 	let in_hash_flag = isUserReceiptExisted(data_hash)
-	if in_hash_flag == 10
+	if in_hash_flag == 10 then
 		return error("incorrect data_hash length")
-	else if in_hash_flag == 11
+	elseif in_hash_flag == 11 then
 		return error("incorrect data_hash")
-	else if in_hash_flag == 3
+	elseif in_hash_flag == 3 then
 		return error("incorrect cdcdata type")
-	else if in_hash_flag == 2
+	elseif in_hash_flag == 2 then
 		return error("data_hash not existed")
-	else if in_hash_flag ~= 0
+	elseif in_hash_flag ~= 0 then
 		return error("isUserReceiptExisted: internal error")
 	end
 	
 	let ret_flag = abolish_cdcdata_hash(1, data_hash)
-	if ret_flag == 2
+	if ret_flag == 2 then
 		return error("data_hash not existed")
-	else if ret_flag == 3
+	elseif ret_flag == 3 then
 		return error("incorrect cdcdata type")
-	else if ret_flag ~= 0
+	elseif ret_flag ~= 0 then
 		return error("abolish_cdcdata_hash: internal error")
 	end
 end
 
--- 查询xxxx offline
+-- 查询合约名
+offline function M:getContractName()
+	let ret = self.storage.name
+	return ret
+end
 
+-- 查询allowedAddrCaller
+offline function M:getallowedAddrCaller()
+	let ret = tojsonstring(self.storage.allowedAddrCaller)
+	return ret
+end
 
--- 查询xxxx offline
+-- 查询allowedConCaller
+offline function M:getallowedConCaller()
+	let ret = tojsonstring(self.storage.allowedConCaller)
+	return ret
+end
 
+return M
