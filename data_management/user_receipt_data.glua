@@ -173,6 +173,8 @@ function M:checkinUserReceiptHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("checkin_cdcdata_hash: internal error")
 	end
+	
+	emit checkinUserReceiptHash("checkin user receipt hash")
 end
 
 -- 校验user_receipt_data数据
@@ -228,6 +230,8 @@ function M:abolishUserReceiptHash(data: string)
 	elseif ret_flag ~= 0 then
 		return error("abolish_cdcdata_hash: internal error")
 	end
+	
+	emit abolishUserReceiptHash("abolish user receipt hash")
 end
 
 -- 查询合约名
