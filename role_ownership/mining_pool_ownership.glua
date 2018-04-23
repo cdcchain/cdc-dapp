@@ -139,6 +139,20 @@ let function is_contract_admin(self: table, name: string)
 
 end
 
+-- check whether contractor operator
+let function is_contract_operator(self: table, name: string)
+
+    for i, v in ipairs(totable(self.storage.operators)) do 
+        if name == v then
+            return true
+        end
+    end
+
+    return false
+
+end
+
+
 -- store contract admin back to chain
 let function store_contract_admin_on_chain(name: string) 
     
@@ -281,16 +295,19 @@ function PoolContract:set_share_percent_of_share_proposal(arg: string)
 end
 
 -- change holder shares
-let function change_share(self)
+let function change_share(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
         return error("share info something wrong!")
     end
 
     -- delete all contract admin on chain
-    for i = 1, #self.storage.admins do
-        delete_contract_admin_on_chain(tostring(self.storage.admins[i]))
+    if #self.storage.admins ~= 0 then
+        for i = 1, #self.storage.admins do
+            delete_contract_admin_on_chain(tostring(self.storage.admins[i]))
+        end
     end
+    
 
     self.storage.shareHolders = {}
     self.storage.admins = []
@@ -404,16 +421,18 @@ end
 
 
 -- change contract operator
-let function change_operator(self)
+let function change_operator(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
         return error("operator info something wrong!")
     end
 
     -- delete all contract operator on chain
-    for i = 1, #self.storage.operators do
-        delete_contract_operator_on_chain(tostring(self.storage.operators[i]))
-    end
+    if #self.storage.operators ~= 0 then
+        for i = 1, #self.storage.operators do
+            delete_contract_operator_on_chain(tostring(self.storage.operators[i]))
+        end
+    end    
 
     self.storage.operators = []
     for i, v in pairs(totable(self.storage.proposalOperatorInfo)) do
@@ -454,6 +473,24 @@ function PoolContract:agree_operator_proposal(_: string)
         self.storage.proposalOperatorState = 'NOT_EXIST'
         self.storage.proposalOperatorInfo = []
     end
+
+end
+
+
+-- apply mining pool alliance
+function PoolContract:apply_pool_alliance(contract_id: string)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    let c = import_contract_from_address(contract_id)
+    if (not c) or (not c.accept_apply) then
+        return error("contract or funciton in contract not exist!")
+    end
+
+    var current_contract_id: string = get_current_contract_address()
+    c:store_apply(current_contract_id, caller_address)
 
 end
 
@@ -501,6 +538,16 @@ end
 
 offline function PoolContract:get_operator_proposal_info(_: string)
     let res = helper_get_operator_proposal_info(self)
+    return res
+end
+
+offline function PoolContract:get_apply_info(_: string)
+    let c = import_contract_from_address(contract_id)
+    if (not c) or (not c.get_applied_member_info) then
+        return error("contract or funciton in contract not exist!")
+    end
+
+    let res = c:get_applied_member_info(get_current_contract_address())
     return res
 end
 

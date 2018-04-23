@@ -139,6 +139,19 @@ let function is_contract_admin(self: table, name: string)
 
 end
 
+-- check whether contractor operator
+let function is_contract_operator(self: table, name: string)
+
+    for i, v in ipairs(totable(self.storage.operators)) do 
+        if name == v then
+            return true
+        end
+    end
+
+    return false
+
+end
+
 -- store contract admin back to chain
 let function store_contract_admin_on_chain(name: string) 
     
@@ -281,15 +294,17 @@ function MerchantContract:set_share_percent_of_share_proposal(arg: string)
 end
 
 -- change holder shares
-let function change_share(self)
+let function change_share(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
         return error("share info something wrong!")
     end
 
     -- delete all contract admin on chain
-    for i = 1, #self.storage.admins do
-        delete_contract_admin_on_chain(tostring(self.storage.admins[i]))
+    if #self.storage.admins ~= 0 then
+        for i = 1, #self.storage.admins do
+            delete_contract_admin_on_chain(tostring(self.storage.admins[i]))
+        end
     end
 
     self.storage.shareHolders = {}
@@ -404,16 +419,18 @@ end
 
 
 -- change contract operator
-let function change_operator(self)
+let function change_operator(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
         return error("operator info something wrong!")
     end
 
     -- delete all contract operator on chain
-    for i = 1, #self.storage.operators do
-        delete_contract_operator_on_chain(tostring(self.storage.operators[i]))
-    end
+    if #self.storage.operators ~= 0 then
+        for i = 1, #self.storage.operators do
+            delete_contract_operator_on_chain(tostring(self.storage.operators[i]))
+        end
+    end   
 
     self.storage.operators = []
     for i, v in pairs(totable(self.storage.proposalOperatorInfo)) do
