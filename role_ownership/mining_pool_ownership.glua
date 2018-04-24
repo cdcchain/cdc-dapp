@@ -114,7 +114,7 @@ let function is_share_inited(self: table)
 end
 
 
--- check whether data operator on chain
+-- check whether general admin on chain
 let function is_general_admin()
 
     let res = verify_general_admin(caller_address)

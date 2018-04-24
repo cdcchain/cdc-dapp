@@ -9,6 +9,12 @@ type PoolMember = {
     isAgreed: bool                               -- record whether agree apply
 }
 
+-- type committee member: used to record applied committee member state
+type CommitteeArbitrator = {
+    name: string,                                -- record member name
+    value: int,                                  -- record member value                                        
+}
+
 -- type Property: used to record properties of the pool
 type  Property = {
 
@@ -35,6 +41,8 @@ type  Property = {
     allianceFee: int ,                           -- record alliance fee
     appliedPoolMember: Map<PoolMember>,          -- record apply pool member(contract id) 
     poolMember: Array<string>                    -- record pool member(contract id)
+
+    poolArbitrator: Map<CommitteeArbitrator>     -- record committee arbitrator
 
 }
 
@@ -64,9 +72,11 @@ function  PoolAllianceContract:init()
     self.storage.proposalOperatorInfo = []
     self.storage.agreeProposalOperatorInfo = []
 
-    self.storage.allianceFee = 100
+    self.storage.allianceFee = 1000000
     self.storage.appliedPoolMember = {}
     self.storage.poolMember = []
+
+    self.storage.poolArbitrator = {}
 
 end
 
@@ -310,7 +320,7 @@ function PoolAllianceContract:set_share_percent_of_share_proposal(arg: string)
 end
 
 -- change holder shares
-let function change_share(self)
+let function change_share(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
         return error("share info something wrong!")
@@ -436,7 +446,7 @@ end
 
 
 -- change contract operator
-let function change_operator(self)
+let function change_operator(self: table)
 
     if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
         return error("operator info something wrong!")
@@ -533,6 +543,17 @@ function PoolAllianceContract:agree_apply(contract_id: string)
 
 end
 
+-- disagree pool member apply
+function PoolAllianceContract:disagree_apply(contract_id: string)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    self.storage.appliedPoolMember[contract_id] = nil
+
+end
+
 let function is_agreed(self: table, operator_addr: string)
     
     for k, v in pairs(totable(self.storage.appliedPoolMember)) do
@@ -577,6 +598,50 @@ function PoolAllianceContract:on_deposit(amount: int)
 end
 
 
+-- invite arbitrator
+function PoolAllianceContract:invite_arbitrator(contract_id: string, name: string)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    let c = import_contract_from_address(contract_id)
+    if (not c) or (not c.store_inviting_info) then
+        return error("contract or funciton in contract not exist!")
+    end
+
+    var current_contract_id: string = get_current_contract_address()
+    c:store_inviting_info(current_contract_id, caller_address)
+
+end
+
+-- store invited arbitrator info
+function PoolAllianceContract:store_arbitrator(contract_id: string, arbitrator_name: string, arbitrator_value: int)
+
+    let prev_contract = get_prev_call_frame_contract_address()
+
+    if prev_contract == "" or prev_contract == nil then
+        return error("only allow call this function in contract!")
+    end
+
+    let man: CommitteeArbitrator = {name = arbitrator_name, value = arbitrator_value} 
+    self.storage.poolArbitrator[contract_id] = man
+
+end
+
+-- pay arbitrator 
+function PoolAllianceContract:pay_arbitrator(contract_id: string)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    let arb: CommitteeArbitrator = self.storage.CommitteeArbitrator[contract_id]
+    let res: int = transfer_from_contract_to_address(arb.name, "CDC", arb.value)
+    if res ~= 0 then
+        return error("something is wrong when pay arbitrator!")
+
+end
 
 
 
