@@ -12,7 +12,7 @@ type PoolMember = {
 -- type committee member: used to record applied committee member state
 type CommitteeArbitrator = {
     name: string,                                -- record member name
-    value: int,                                  -- record member value                                        
+    value: int                                   -- record member value                                        
 }
 
 -- type Property: used to record properties of the pool
@@ -29,20 +29,20 @@ type  Property = {
     proposalShareState: string,                  -- record change share proposal state
     proposalShareInfo: Map<int>,                 -- record change share proposal info
     agreeProposalShareInfo: Array<string>,       -- record the info of agreeing the share proposal
-
+    disagreeProposalShareInfo: Array<string>,    -- record the info of disagreeing the share proposal
 
     proposalOperatorPercent: int,                -- record the share percent to pass a operator proposal
     proposalOperatorState: string,               -- record change operator proposal state
     proposalOperatorInfo: Array<string>,         -- record change operator proposal info
     agreeProposalOperatorInfo: Array<string>,    -- record the info of agreeing the operator proposal
-
+    disagreeProposalOperatorInfo: Array<string>, -- record the info of disagreeing the  operator proposal
 
     
-    allianceFee: int ,                           -- record alliance fee
-    appliedPoolMember: Map<PoolMember>,          -- record apply pool member(contract id) 
-    poolMember: Array<string>                    -- record pool member(contract id)
+    allianceFee: int,                           -- record alliance fee
+    appliedPoolMember: Map<string>,          -- record apply pool member(contract id) 
+    poolMember: Array<string>,                   -- record pool member(contract id)
 
-    poolArbitrator: Map<CommitteeArbitrator>     -- record committee arbitrator
+    poolArbitrator: Map<string>     -- record committee arbitrator
 
 }
 
@@ -66,11 +66,13 @@ function  PoolAllianceContract:init()
     self.storage.proposalShareState = 'NOT_EXIST'
     self.storage.proposalShareInfo = {}
     self.storage.agreeProposalShareInfo = []
+    self.storage.disagreeProposalShareInfo = []
 
     self.storage.proposalOperatorPercent = 50 * Precision
     self.storage.proposalOperatorState = 'NOT_EXIST'
     self.storage.proposalOperatorInfo = []
     self.storage.agreeProposalOperatorInfo = []
+    self.storage.disagreeProposalOperatorInfo = []
 
     self.storage.allianceFee = 1000000
     self.storage.appliedPoolMember = {}
@@ -322,10 +324,6 @@ end
 -- change holder shares
 let function change_share(self: table)
 
-    if self.storage.shareHolders == {} or self.storage.proposalShareInfo == {} then
-        return error("share info something wrong!")
-    end
-
     -- delete all contract admin on chain
     if #self.storage.admins ~= 0 then
         for i = 1, #self.storage.admins do
@@ -374,6 +372,32 @@ function PoolAllianceContract:agree_share_proposal(_: string)
 
     if total_agree_share > tointeger(self:get_share_percent_of_share_proposal("")) then
         change_share(self)
+        self.storage.proposalShareState = 'NOT_EXIST'
+        self.storage.proposalShareInfo = {}
+    end
+
+end
+
+-- whether disagree the change share proposal
+function PoolAllianceContract:disagree_share_proposal(_: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= helper_get_share_proposal_state(self) then
+        return error("No proposal in progress!")
+    end
+
+    let current_disagree_len = #self.storage.disagreeProposalShareInfo
+    self.storage.disagreeProposalShareInfo[current_disagree_len + 1] = caller_address
+    
+    var total_disagree_share: int = 0
+    for i, v in ipairs(self.storage.disagreeProposalShareInfo) do
+        total_disagree_share = total_disagree_share + self.storage.shareHolders[v]
+    end
+
+    if  total_disagree_share > (100 - tointeger(self:get_share_percent_of_share_proposal(""))) then
         self.storage.proposalShareState = 'NOT_EXIST'
         self.storage.proposalShareInfo = {}
     end
@@ -448,10 +472,6 @@ end
 -- change contract operator
 let function change_operator(self: table)
 
-    if self.storage.shareHolders == {} or self.storage.proposalOperatorInfo == {} then
-        return error("operator info something wrong!")
-    end
-
     -- delete all contract operator on chain
     if #self.storage.operators ~= 0 then
         for i = 1, #self.storage.operators do
@@ -501,6 +521,32 @@ function PoolAllianceContract:agree_operator_proposal(_: string)
 
 end
 
+-- whether disagree the change operator proposal
+function PoolAllianceContract:disagree_operator_proposal(_: string)
+
+    if not is_contract_admin(self, caller_address) then
+        return error("you are not contract admin, can't call this function!")
+    end
+
+    if 'IN_PROGRESS' ~= helper_get_operator_proposal_state(self) then
+        return error("No proposal in progress!")
+    end
+
+    let current_disagree_len = #self.storage.disagreeProposalOperatorInfo
+    self.storage.disagreeProposalOperatorInfo[current_disagree_len + 1] = caller_address
+
+    var total_disagree_share: int = 0
+    for i, v in ipairs(self.storage.disagreeProposalOperatorInfo) do
+        total_disagree_share = total_disagree_share + tointeger(self.storage.shareHolders[v])
+    end
+
+    if total_disagree_share > (100 - tointeger(self:get_share_percent_of_operator_proposal(""))) then
+        self.storage.proposalOperatorState = 'NOT_EXIST'
+        self.storage.proposalOperatorInfo = []
+    end
+
+end
+
 
 let function is_applied(self: table, contract_id: string)
 
@@ -515,7 +561,7 @@ let function is_applied(self: table, contract_id: string)
 end
 
 -- store the applied pool member(only allow contract call it)
-function PoolAllianceContract:store_apply(contract_id: string, operator_addr: string)
+function PoolAllianceContract:store_apply(arg: string)
 
     let prev_contract = get_prev_call_frame_contract_address()
 
@@ -523,11 +569,15 @@ function PoolAllianceContract:store_apply(contract_id: string, operator_addr: st
         return error("only allow call this function in contract!")
     end
 
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
     if is_applied(self, contract_id) then
         return error("member already applied!")
     else
-        var member: PoolMember = {applyer = operator_addr, isAgreed = false}
-        self.storage.appliedPoolMember[contract_id] = member
+        
+        var member: PoolMember = {applyer = parsed[2], isAgreed = false}
+        let member_json_str: string = tojsonstring(member)
+        self.storage.appliedPoolMember[contract_id] = member_json_str
     end
 
 end
@@ -539,7 +589,14 @@ function PoolAllianceContract:agree_apply(contract_id: string)
         return error("you are not contract operator, can't call this function!")
     end
 
-    self.storage.appliedPoolMember[contract_id].isAgreed = true
+    var member: PoolMember = totable(json.loads(self.storage.appliedPoolMember[contract_id]))
+    if member == nil then
+       return error("something wrong when loading pool member from json string!") 
+    end
+
+    member.isAgreed = true
+    let member_json_str: string = tojsonstring(member)
+    self.storage.appliedPoolMember[contract_id] = member_json_str
 
 end
 
@@ -557,7 +614,12 @@ end
 let function is_agreed(self: table, operator_addr: string)
     
     for k, v in pairs(totable(self.storage.appliedPoolMember)) do
-        if (operator_addr == v.applyer) and (v.isAgreed == true) then
+        var member: PoolMember = totable(json.loads(tostring(v)))
+        if member == nil then
+            return error("something wrong when loading pool member from json string!") 
+        end
+
+        if (operator_addr == member.applyer) and (member.isAgreed == true) then
             return true
         end
     end
@@ -573,16 +635,21 @@ function PoolAllianceContract:on_deposit(amount: int)
         return error("alliance fee not enough!")
     end
 
-    if not is_agreed(caller_address) then
+    if not is_agreed(self, caller_address) then
         return error("alliance operator not agree the apply yet!")
     end
 
     var apply_key: string = ""
     for k, v in pairs(totable(self.storage.appliedPoolMember)) do
-        if caller_address == v.applyer then
-            apply_key = k
+        var member: PoolMember = totable(json.loads(tostring(v)))
+        if member == nil then
+            return error("something wrong when loading pool member from json string!") 
+        end
+
+        if caller_address == member.applyer then
+            apply_key = tostring(k)
             let len = #self.storage.poolMember
-            self.storage.poolMember[len + 1] = k
+            self.storage.poolMember[len + 1] = tostring(k)
         end
     end
     self.storage.appliedPoolMember[apply_key] = nil
@@ -599,24 +666,27 @@ end
 
 
 -- invite arbitrator
-function PoolAllianceContract:invite_arbitrator(contract_id: string, name: string)
+function PoolAllianceContract:invite_arbitrator(arg: string)
 
     if not is_contract_operator(self, caller_address) then
         return error("you are not contract operator, can't call this function!")
     end
+
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
 
     let c = import_contract_from_address(contract_id)
     if (not c) or (not c.store_inviting_info) then
         return error("contract or funciton in contract not exist!")
     end
 
-    var current_contract_id: string = get_current_contract_address()
-    c:store_inviting_info(current_contract_id, caller_address)
+    var param: string = contract_id..","..parsed[2]
+    c:store_inviting_info(param)
 
 end
 
 -- store invited arbitrator info
-function PoolAllianceContract:store_arbitrator(contract_id: string, arbitrator_name: string, arbitrator_value: int)
+function PoolAllianceContract:store_arbitrator(arg: string)
 
     let prev_contract = get_prev_call_frame_contract_address()
 
@@ -624,8 +694,13 @@ function PoolAllianceContract:store_arbitrator(contract_id: string, arbitrator_n
         return error("only allow call this function in contract!")
     end
 
-    let man: CommitteeArbitrator = {name = arbitrator_name, value = arbitrator_value} 
-    self.storage.poolArbitrator[contract_id] = man
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
+    let arbitrator_name: string = parsed[2]
+    let arbitrator_value: int = tointeger(parsed[3])
+    var arb: CommitteeArbitrator = {name = arbitrator_name, value = arbitrator_value}
+    let arb_json_str: string = tojsonstring(arb)
+    self.storage.poolArbitrator[contract_id] = arb_json_str
 
 end
 
@@ -636,10 +711,12 @@ function PoolAllianceContract:pay_arbitrator(contract_id: string)
         return error("you are not contract operator, can't call this function!")
     end
 
-    let arb: CommitteeArbitrator = self.storage.CommitteeArbitrator[contract_id]
+    let arb_json_str: string = tostring(self.storage.poolArbitrator[contract_id])
+    var arb: CommitteeArbitrator = totable(json.loads(arb_json_str))
     let res: int = transfer_from_contract_to_address(arb.name, "CDC", arb.value)
     if res ~= 0 then
         return error("something is wrong when pay arbitrator!")
+    end
 
 end
 

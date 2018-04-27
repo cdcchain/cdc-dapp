@@ -46,11 +46,13 @@ function  PoolContract:init()
     self.storage.proposalShareState = 'NOT_EXIST'
     self.storage.proposalShareInfo = {}
     self.storage.agreeProposalShareInfo = []
+    self.storage.disagreeProposalShareInfo = []
 
     self.storage.proposalOperatorPercent = 50 * Precision
     self.storage.proposalOperatorState = 'NOT_EXIST'
     self.storage.proposalOperatorInfo = []
     self.storage.agreeProposalOperatorInfo = []
+    self.storage.disagreeProposalOperatorInfo = []
 
 end
 
@@ -298,10 +300,6 @@ end
 -- change holder shares
 let function change_share(self: table)
 
-    if #self.storage.shareHolders == 0 or #self.storage.proposalShareInfo == 0 then
-        return error("share info something wrong!")
-    end
-
     -- delete all contract admin on chain
     if #self.storage.admins ~= 0 then
         for i = 1, #self.storage.admins do
@@ -375,7 +373,7 @@ function PoolContract:disagree_share_proposal(_: string)
         total_disagree_share = total_disagree_share + self.storage.shareHolders[v]
     end
 
-    if  total_disagree_share > (100 - tointeger(self:get_share_percent_of_share_proposal("")) then
+    if  total_disagree_share > (100 - tointeger(self:get_share_percent_of_share_proposal(""))) then
         self.storage.proposalShareState = 'NOT_EXIST'
         self.storage.proposalShareInfo = {}
     end
@@ -450,10 +448,6 @@ end
 
 -- change contract operator
 let function change_operator(self: table)
-
-    if #self.storage.shareHolders == 0 or #self.storage.proposalOperatorInfo == 0 then
-        return error("operator info something wrong!")
-    end
 
     -- delete all contract operator on chain
     if #self.storage.operators ~= 0 then
@@ -545,7 +539,8 @@ function PoolContract:apply_pool_alliance(contract_id: string)
     end
 
     var current_contract_id: string = get_current_contract_address()
-    c:store_apply(current_contract_id, caller_address)
+    let param: string = current_contract_id..","..caller_address
+    c:store_apply(param)
 
 end
 

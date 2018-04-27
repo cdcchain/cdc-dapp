@@ -26,12 +26,11 @@ type  Property = {
 
     
     committeeFee: int ,                             -- record committee fee
-    appliedCommitteeMember: Map<CommitteeMember>,   -- record apply committee member
-    committeeMember: Map<CommitteeMember>,          -- record committee member
+    appliedCommitteeMember: Map<string>,   -- record apply committee member
+    committeeMember: Map<string>,          -- record committee member
 
 
-    invitingArbitrator: Map<stirng>                 -- record the inviting arbitrator info
-    tmpinvitedArbitrator: string                    -- temp record the invited Arbitrator
+    invitingArbitrator: Map<string>                 -- record the inviting arbitrator info
 
 }
 
@@ -46,12 +45,12 @@ function  ArbitratorCommitteeContract:init()
 
     self.storage.register = caller_address    
     self.storage.chair = ""
-    self.sotrage.isChairInit = false
+    self.storage.isChairInit = false
 
     self.storage.proposalPercent = 50
     self.storage.proposalState = 'NOT_EXIST'
-    self.sotrage.proposalInfo = ""
-    self.sotrage.agreeProposalInfo = []
+    self.storage.proposalInfo = ""
+    self.storage.agreeProposalInfo = []
     self.storage.disagreeProposalInfo = []
 
     self.storage.committeeFee = 1000000
@@ -59,9 +58,27 @@ function  ArbitratorCommitteeContract:init()
     self.storage.committeeMember = {}
 
     self.storage.invitingArbitrator = {}
-    self.storage.tmpinvitedArbitrator = ""
 
 end
+
+
+-- parse args
+let function parse_args(arg: string)
+
+    if not arg then 
+        return error(INVALID_ARGS)
+    end
+
+    let parsed = string.split(arg, ',')
+
+    if not parsed then
+        return error(INVALID_ARGS)
+    end
+
+    return parsed    
+    
+end
+
 
 
 -- check whether chair have been inited
@@ -90,7 +107,8 @@ end
 let function is_committee_member(self: table, name: string)
 
     for k, v in pairs(totable(self.storage.committeeMember)) do
-        if  v.applyer == name then
+        let member: CommitteeMember = totable(json.loads(tostring(v)))
+        if  member.applyer == name then
             return true
         end
     end
@@ -208,7 +226,8 @@ function ArbitratorCommitteeContract:agree_proposal(_: string)
     self.storage.agreeProposalInfo[current_agree_len + 1] = caller_address
 
 
-    let current_percent: number = get_percent_of_proposal() / 100
+    var current_percent: number = tonumber(ArbitratorCommitteeContract:get_percent_of_proposal(""))
+    current_percent = current_percent / 100
     if current_agree_len > tointeger(#self.storage.committeeMember * current_percent ) then
         change_chair(self)
         self.storage.proposalState = 'NOT_EXIST'
@@ -231,7 +250,7 @@ let function is_applied(self: table, contract_id: string)
 end
 
 -- store the applied committee member(only allow contract call it)
-function ArbitratorCommitteeContract:store_apply(contract_id: string, operator_addr: string, member_value: int)
+function ArbitratorCommitteeContract:store_apply(arg: string)
 
     let prev_contract = get_prev_call_frame_contract_address()
 
@@ -239,11 +258,16 @@ function ArbitratorCommitteeContract:store_apply(contract_id: string, operator_a
         return error("only allow call this function in contract!")
     end
 
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
+    let operator_addr: string = parsed[2]
+    let member_value: int = tointeger(parsed[3])
+
     if is_applied(self, contract_id) then
         return error("member already applied!")
     else
         var member: CommitteeMember = {applyer = operator_addr, value = member_value, isAgreed = false}
-        self.storage.appliedCommitteeMember[contract_id] = member
+        self.storage.appliedCommitteeMember[contract_id] = tojsonstring(member)
     end
 
 end
@@ -255,14 +279,16 @@ function ArbitratorCommitteeContract:agree_apply(contract_id: string)
         return error("you are not chair man, can't call this function!")
     end
 
-    self.storage.appliedCommitteeMember[contract_id].isAgreed = true
+    let member: CommitteeMember = totable(json.loads(self.storage.appliedCommitteeMember[contract_id]))
+    member.isAgreed = true
 
 end
 
 let function is_agreed(self: table, operator_addr: string)
     
     for k, v in pairs(totable(self.storage.appliedCommitteeMember)) do
-        if (operator_addr == v.applyer) and (v.isAgreed == true) then
+        let member: CommitteeMember = totable(json.loads(tostring(v)))
+        if (operator_addr == member.applyer) and (member.isAgreed == true) then
             return true
         end
     end
@@ -278,16 +304,16 @@ function ArbitratorCommitteeContract:on_deposit(amount: int)
         return error("committee fee not enough!")
     end
 
-    if not is_agreed(caller_address) then
+    if not is_agreed(self, caller_address) then
         return error("committee chair man not agree the apply yet!")
     end
 
     var apply_key: string = ""
     for k, v in pairs(totable(self.storage.appliedCommitteeMember)) do
-        if caller_address == v.applyer then
-            apply_key = k
-            let len = #self.storage.committeeMember
-            self.storage.committeeMember[len + 1] = k
+        let member: CommitteeMember = totable(json.loads(tostring(v)))
+        if caller_address == member.applyer then
+            apply_key = tostring(k)
+            self.storage.committeeMember[apply_key] = tostring(v)
         end
     end
     self.storage.appliedCommitteeMember[apply_key] = nil
@@ -316,7 +342,7 @@ let function is_inviting(self: table, contract_id: string)
 
 end
 
-function ArbitratorCommitteeContract:store_inviting_info(contract_id: string, name: string)
+function ArbitratorCommitteeContract:store_inviting_info(arg: string)
 
     let prev_contract = get_prev_call_frame_contract_address()
 
@@ -324,6 +350,9 @@ function ArbitratorCommitteeContract:store_inviting_info(contract_id: string, na
         return error("only allow call this function in contract!")
     end
 
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
+    let name: string = parsed[2]
     if not is_committee_member(self, name) then
         return error("inviting arbitrator is not committee member!")
     end
@@ -337,25 +366,32 @@ function ArbitratorCommitteeContract:store_inviting_info(contract_id: string, na
 end
 
 
-function ArbitratorCommitteeContract:agree_invitation(contract_id: string, name: string)
+function ArbitratorCommitteeContract:agree_invitation(arg: string)
 
     if self.storage.chair ~= caller_address then
         return error("you are not chair man, can't call this function!")
     end
+
+    
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
+    let name: string = parsed[2]
 
     let c = import_contract_from_address(contract_id)
     if (not c) or (not c.store_arbitrator) then
         return error("contract or funciton in contract not exist!")
     end
 
-    var current_contract_id: string = get_current_contract_address()
-    let member_value: int = 0
-    for k, v in pairs(totable(self.storage.appliedCommitteeMember)) do
-        if name == v.applyer then
-            member_value = v.value
+    var current_contract_id: string = tostring(get_current_contract_address())
+    var member_value: int = 0
+    for k, v in pairs(totable(self.storage.committeeMember)) do
+        let member: CommitteeMember = totable(json.loads(tostring(v)))
+        if name == member.applyer then
+            member_value = tointeger(member.value)
         end
     end
-    c:store_arbitrator(current_contract_id, name, value)
+    var param: string = current_contract_id..","..name..","..tostring(member_value)
+    c:store_arbitrator(param)
 
     if  self.storage.invitingArbitrator[contract_id] == nil then
         return error("inviting info something wrong!")
@@ -366,12 +402,6 @@ function ArbitratorCommitteeContract:agree_invitation(contract_id: string, name:
 end
 
 
-
-
-offline function ArbitratorCommitteeContract:get_committee_member_info(_: string)
-    let res = tojsonstring(self.storage.committeeMember)
-    return res
-end
 
 
 
