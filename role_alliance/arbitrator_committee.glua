@@ -293,6 +293,22 @@ function ArbitratorCommitteeContract:on_deposit(amount: int)
 end
 
 
+-- withdraw from contract balance
+function ArbitratorCommitteeContract:withdraw_from_contract(amount: int)
+
+    if self.storage.chair ~= caller_address then
+        return error("you are not chair man, can't call this function!")
+    end
+
+    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
+    if res ~= 0 then
+        return error("something is wrong when withdraw from contract!")
+    end
+
+end
+
+
 offline function ArbitratorCommitteeContract:get_chair_man(_: string)
     let res = self.storage.chair
     return res

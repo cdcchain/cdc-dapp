@@ -653,6 +653,20 @@ function PoolAllianceContract:pay_arbitrator(contract_id: string)
 
 end
 
+-- withdraw from contract balance
+function PoolAllianceContract:withdraw_from_contract(amount: int)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
+    if res ~= 0 then
+        return error("something is wrong when withdraw from contract!")
+    end
+
+end
 
 
 offline function PoolAllianceContract:get_pool_share_info(_: string)
