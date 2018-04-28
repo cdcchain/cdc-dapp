@@ -31,7 +31,7 @@ type  Property = {
 var PoolContract = Contract<Property>()
 
 var INVALID_ARGS = "invalid args!"
-var Precision: int = 100
+var SharePrecision: int = 100
 
 
 function  PoolContract:init()
@@ -42,13 +42,13 @@ function  PoolContract:init()
     self.storage.operators = []
     self.storage.isShareInit = false
 
-    self.storage.proposalSharePercent = 50 * Precision
+    self.storage.proposalSharePercent = 50 * SharePrecision
     self.storage.proposalShareState = 'NOT_EXIST'
     self.storage.proposalShareInfo = {}
     self.storage.agreeProposalShareInfo = []
     self.storage.disagreeProposalShareInfo = []
 
-    self.storage.proposalOperatorPercent = 50 * Precision
+    self.storage.proposalOperatorPercent = 50 * SharePrecision
     self.storage.proposalOperatorState = 'NOT_EXIST'
     self.storage.proposalOperatorInfo = []
     self.storage.agreeProposalOperatorInfo = []
@@ -79,7 +79,7 @@ let function parse_init_share_args(arg: string)
         total_share = total_share + tointeger(parsed[i+1])
     end
    
-    let tmp = Precision * 100
+    let tmp = SharePrecision * 100
     if total_share ~= tmp then
         return error(INVALID_ARGS.." total share is not 100%!")
     end
@@ -526,25 +526,6 @@ function PoolContract:disagree_operator_proposal(_: string)
 end
 
 
--- apply mining pool alliance
-function PoolContract:apply_pool_alliance(contract_id: string)
-
-    if not is_contract_operator(self, caller_address) then
-        return error("you are not contract operator, can't call this function!")
-    end
-
-    let c = import_contract_from_address(contract_id)
-    if (not c) or (not c.store_apply) then
-        return error("contract or funciton in contract not exist!")
-    end
-
-    var current_contract_id: string = get_current_contract_address()
-    let param: string = current_contract_id..","..caller_address
-    c:store_apply(param)
-
-end
-
-
 offline function PoolContract:get_pool_share_info(_: string)
     let res = tojsonstring(self.storage.shareHolders)
     return res
@@ -588,16 +569,6 @@ end
 
 offline function PoolContract:get_operator_proposal_info(_: string)
     let res = helper_get_operator_proposal_info(self)
-    return res
-end
-
-offline function PoolContract:get_apply_info(contract_id: string)
-    let c = import_contract_from_address(contract_id)
-    if (not c) or (not c.get_applied_member_info) then
-        return error("contract or funciton in contract not exist!")
-    end
-
-    let res = c:get_applied_member_info(get_current_contract_address())
     return res
 end
 
