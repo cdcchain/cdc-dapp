@@ -1,0 +1,267 @@
+var Precision: int = 10000
+
+-- 正在进行中的任务信息
+type TaskInfoProgress = {
+    task_id: string,
+    task_launcher: string,
+    task_bonus: int,
+    miner_array: Array<string>
+    mining_result: Array<string>
+}
+
+-- 历史任务信息
+type TaskInfoHistory = {
+    task_id: string,
+    task_launcher: string,
+    task_bonus: int,
+    miner_array: Array<string>,
+    mining_result: Array<string>
+    bonus_history: Map<int>
+}
+
+type Storage = {
+	name: string,
+	--允许调用者数组 (发起调用的用户地址)
+	allowedAddrCaller: Array<string>,
+	--允许调用者数组 (直接调用的合约地址)
+	allowedConCaller: Array<string>,
+	--进行中的任务信息
+	currentTasks: Map<string>,
+	--已结束的任务信息
+	historyTasks: Map<string>,
+	--所有账户的余额信息
+    balance: Map<int>
+}
+
+var M = Contract<Storage>()
+
+function M:init()
+	self.storage.name = "task_publish_platform"
+	self.storage.allowedAddrCaller = []
+    self.storage.allowedConCaller = []
+    self.storage.currentTasks = {}
+    self.storage.historyTasks = {}
+    self.storage.balance = {}
+end
+
+-- 判断是否为普通管理员
+let function isGeneralAdmin()
+	let adminArray = get_general_admin()
+	for k,v in pairs(adminArray) do
+		if caller_address == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 判断是否已经存在于allowedAddrCaller中
+let function isAddressAllowed(self: table, addr: string)
+	for k,v in pairs(totable(self.storage.allowedAddrCaller)) do
+		if addr == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 判断是否已经存在于allowedConCaller中
+let function isContractAllowed(self: table, addr: string)
+	let in_flag = false
+	for k,v in pairs(totable(self.storage.allowedConCaller)) do
+		if addr == v then
+			return true
+		end
+	end
+	return false
+end
+
+-- 提供GeneralAdmin调用
+-- 添加到allowedAddrCaller中
+function M:addAddrCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_address(addr)
+	if valid_flag == false then
+		return error("invalid address")
+	end
+	
+	let in_flag = isAddressAllowed(self, addr)
+	if in_flag == true then
+		return error("has in allowedAddrCaller already")
+	end 
+	
+	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller+1] = addr
+end
+
+-- 提供GeneralAdmin调用
+-- 添加到allowedConCaller中
+function M:addConCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_contract_address(addr)
+	if valid_flag == false then
+		return error("invalid contract address")
+	end
+	
+	let in_flag = isContractAllowed(self, addr)
+	if in_flag == true then
+		return error("has in allowedConCaller already")
+	end 
+	
+	self.storage.allowedConCaller[#self.storage.allowedConCaller+1] = addr
+end
+
+-- 提供GeneralAdmin调用
+-- 从allowedAddrCaller中移除
+function M:delAddrCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_address(addr)
+	if valid_flag == false then
+		return error("invalid address")
+	end
+	
+	let in_flag = isAddressAllowed(self, addr)
+	if in_flag == false then
+		return error("not in allowedAddrCaller")
+	end 
+	
+	table.remove(self.storage.allowedAddrCaller, addr)
+end
+
+-- 提供GeneralAdmin调用
+-- 从allowedConCaller中移除
+function M:delConCallerAllowed(addr: string)
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	let valid_flag = is_valid_contract_address(addr)
+	if valid_flag == false then
+		return error("invalid contract address")
+	end
+	
+	let in_flag = isContractAllowed(self, addr)
+	if in_flag == false then
+		return error("not in allowedConCaller")
+	end 
+	
+	table.remove(self.storage.allowedConCaller, addr)
+end
+
+-- 提供合约内所有用户调用
+-- 充值
+function M:on_deposit(amount: int)
+    var user_balance: int = self.storage.balance[caller_address]
+    if user_balance == nil then
+        self.storage.balance[caller_address] = amount
+    else
+        self.storage.balance[caller_address] = user_balance + amount
+    end
+end
+
+-- 提供合约内所有用户调用
+-- 取钱
+function M:withdraw(amount_str:string)
+    var withdraw_balance:number = tonumber(amount_str)
+    var withdraw_balance_precision:int = tointeger(withdraw_balance * Precision) 
+
+    var user_balance: int = self.storage.balance[caller_address]
+    if user_balance == nil then
+        return error("no balance")
+    elseif user_balance < withdraw_balance_precision then
+        return error("not enough balance to withdraw")
+    else
+        self.storage.balance[caller_address] = user_balance - withdraw_balance_precision
+        transfer_from_contract_to_address(caller_address, "CDC", withdraw_balance_precision)
+    end
+end
+
+-- 提供商家调用
+-- 商家发布任务 参数格式  平台任务ID|商家操作员地址|商家合约地址|任务奖金|矿池地址1,矿池地址2,矿池地址3...
+function M:publishTask(args:string)
+	let parsed = string.split(data, '|')
+	if (not parsed) or (#parsed ~= 5) then
+		return error("args format error")
+    end
+    
+    let task_id = parsed[1]
+    let merchant_operator = parsed[2]
+    let merchant_contract = parsed[3]
+    let task_bonus = tointeger(tonumber(parsed[4]) * Precision)
+	let mining_pools_str = parsed[5]
+
+    let mining_pool_array = string.split(mining_pools_str, ',')
+    if (not parsed) then
+        return error("mining_pools_str format error")
+    end
+
+	var valid_flag bool
+	-- 判断商家操作员地址是否合法
+	valid_flag = is_valid_address(merchant_operator)
+	if valid_flag == false then
+		return error("invalid merchant operator address")
+	end
+
+	-- 判断商家合约地址是否合法
+	valid_flag = is_valid_contract_address(merchant_contract)
+	if valid_flag == false then
+		return error("invalid merchant contract address")
+	end
+
+    -- 调用者必须是商家操作员
+    if merchant_operator ~= caller_address then
+        return error("caller_address is not merchant_operator")
+    end
+
+	-- task_id已经被使用过
+	var current_task_info: string = self.storage.currentTasks[task_id] 
+	if current_task_info ~= nil then
+		return error("task_id is in process")
+	end
+
+	var history_task_info: string = self.storage.historyTasks[task_id]
+	if history_task_info ~= nil then
+		return error("task_id is finished")
+	end
+
+    var user_balance: int = self.storage.balance[caller_address]
+    if user_balance == nil then
+        return error("no balance")
+    elseif user_balance < task_bonus then
+        return error("not enough balance for task_bonus")
+    else
+        self.storage.balance[caller_address] = user_balance - task_bonus
+    end
+
+	var task_info = TaskInfoProgress()
+	-- 来自于中心化平台的任务ID
+    task_info.task_id = task_id
+    task_info.task_launcher = merchant_operator
+    task_info.task_bonus = task_bonus
+	for k,v in pairs(totable(mining_pool_array)) do
+		valid_flag = is_valid_contract_address(v)
+		if valid_flag == false then
+			return error("invalid mining-pool contract address")
+		end
+        task_info.miner_array[k] = v
+	end
+	task_info.mining_result = {}
+
+	self.storage.currentTasks[task_id] = json.dumps(task_info)
+
+end
+
+return M
+

@@ -46,6 +46,7 @@ let function isContractAllowed(self: table, addr: string)
 	return false
 end
 
+-- 提供GeneralAdmin调用
 -- 添加到allowedAddrCaller中
 function M:addAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
@@ -66,6 +67,7 @@ function M:addAddrCallerAllowed(addr: string)
 	self.storage.allowedAddrCaller[#self.storage.allowedAddrCaller+1] = addr
 end
 
+-- 提供GeneralAdmin调用
 -- 添加到allowedConCaller中
 function M:addConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
@@ -86,6 +88,7 @@ function M:addConCallerAllowed(addr: string)
 	self.storage.allowedConCaller[#self.storage.allowedConCaller+1] = addr
 end
 
+-- 提供GeneralAdmin调用
 -- 从allowedAddrCaller中移除
 function M:delAddrCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
@@ -106,8 +109,9 @@ function M:delAddrCallerAllowed(addr: string)
 	table.remove(self.storage.allowedAddrCaller, addr)
 end
 
+-- 提供GeneralAdmin调用
 -- 从allowedConCaller中移除
-function M:addConCallerAllowed(addr: string)
+function M:delConCallerAllowed(addr: string)
 	let admin_flag = isGeneralAdmin()
 	if admin_flag == false then
 		return error("not general admin, and has no authority")
@@ -132,6 +136,7 @@ let function isMiningResultExisted(data: string)
 	return ret
 end
 
+-- 提供权限用户或者权限合约调用
 -- 添加mining_result_data数据
 function M:checkinMiningResultHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
@@ -194,6 +199,7 @@ offline function M:verifyMiningResultHash(data: string)
 	return true
 end
 
+-- 提供权限用户或者权限合约调用
 -- 删除mining_result_data数据
 function M:abolishMiningResultHash(data: string)
 	let prev_contract = get_prev_call_frame_contract_address()
