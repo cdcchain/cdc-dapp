@@ -5,8 +5,8 @@ type TaskInfoProgress = {
     task_id: string,
     task_launcher: string,
     task_bonus: int,
-    miner_array: Array<string>
-    mining_result: Array<string>
+    miner_array: Array<string>,
+    mining_result: Map<string>
 }
 
 -- 历史任务信息
@@ -15,7 +15,7 @@ type TaskInfoHistory = {
     task_launcher: string,
     task_bonus: int,
     miner_array: Array<string>,
-    mining_result: Array<string>
+    mining_result: Map<string>,
     bonus_history: Map<int>
 }
 
@@ -75,6 +75,7 @@ let function isContractAllowed(self: table, addr: string)
 	end
 	return false
 end
+
 
 -- 提供GeneralAdmin调用
 -- 添加到allowedAddrCaller中
@@ -160,6 +161,7 @@ function M:delConCallerAllowed(addr: string)
 	table.remove(self.storage.allowedConCaller, addr)
 end
 
+
 -- 提供合约内所有用户调用
 -- 充值
 function M:on_deposit(amount: int)
@@ -170,6 +172,7 @@ function M:on_deposit(amount: int)
         self.storage.balance[caller_address] = user_balance + amount
     end
 end
+
 
 -- 提供合约内所有用户调用
 -- 取钱
@@ -188,28 +191,27 @@ function M:withdraw(amount_str:string)
     end
 end
 
--- 提供商家调用
--- 商家发布任务 参数格式  平台任务ID|商家操作员地址|商家合约地址|任务奖金|矿池地址1,矿池地址2,矿池地址3...
+-- 提供GeneralAdmin调用
+-- 由GeneralAdmin代替商家发布任务 参数格式  平台任务ID|商家操作员地址|商家合约地址|任务奖金|矿池地址1,矿池地址2,矿池地址3...
 function M:publishTask(args:string)
-	let parsed = string.split(data, '|')
+	let parsed = string.split(args, '|')
 	if (not parsed) or (#parsed ~= 5) then
 		return error("args format error")
     end
     
-    let task_id = parsed[1]
-    let merchant_operator = parsed[2]
-    let merchant_contract = parsed[3]
+    let task_id = tostring(parsed[1])
+    let merchant_operator = tostring(parsed[2])
+    let merchant_contract = tostring(parsed[3])
     let task_bonus = tointeger(tonumber(parsed[4]) * Precision)
-	let mining_pools_str = parsed[5]
+	let mining_pools_str = tostring(parsed[5])
 
     let mining_pool_array = string.split(mining_pools_str, ',')
-    if (not parsed) then
+    if (not mining_pool_array) then
         return error("mining_pools_str format error")
     end
-
-	var valid_flag bool
+	
 	-- 判断商家操作员地址是否合法
-	valid_flag = is_valid_address(merchant_operator)
+	var valid_flag: bool = is_valid_address(merchant_operator)
 	if valid_flag == false then
 		return error("invalid merchant operator address")
 	end
@@ -219,49 +221,209 @@ function M:publishTask(args:string)
 	if valid_flag == false then
 		return error("invalid merchant contract address")
 	end
-
-    -- 调用者必须是商家操作员
-    if merchant_operator ~= caller_address then
-        return error("caller_address is not merchant_operator")
-    end
+	
+	-- 调用者必须是GeneralAdmin
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
 
 	-- task_id已经被使用过
 	var current_task_info: string = self.storage.currentTasks[task_id] 
 	if current_task_info ~= nil then
 		return error("task_id is in process")
 	end
-
+	
 	var history_task_info: string = self.storage.historyTasks[task_id]
 	if history_task_info ~= nil then
 		return error("task_id is finished")
 	end
 
-    var user_balance: int = self.storage.balance[caller_address]
-    if user_balance == nil then
-        return error("no balance")
-    elseif user_balance < task_bonus then
-        return error("not enough balance for task_bonus")
-    else
-        self.storage.balance[caller_address] = user_balance - task_bonus
-    end
+	var user_balance: int = self.storage.balance[merchant_operator]
+	if user_balance == nil then
+		return error("no balance")
+	elseif user_balance < task_bonus then
+		return error("not enough balance for task_bonus")
+	else
+		self.storage.balance[merchant_operator] = user_balance - task_bonus
+	end
 
 	var task_info = TaskInfoProgress()
 	-- 来自于中心化平台的任务ID
-    task_info.task_id = task_id
-    task_info.task_launcher = merchant_operator
-    task_info.task_bonus = task_bonus
+	task_info.task_id = task_id
+	task_info.task_launcher = merchant_operator
+	task_info.task_bonus = task_bonus
 	for k,v in pairs(totable(mining_pool_array)) do
-		valid_flag = is_valid_contract_address(v)
+		valid_flag = is_valid_contract_address(tostring(v))
 		if valid_flag == false then
 			return error("invalid mining-pool contract address")
 		end
-        task_info.miner_array[k] = v
+		task_info.miner_array[#task_info.miner_array+1] = tostring(v)
 	end
 	task_info.mining_result = {}
 
 	self.storage.currentTasks[task_id] = json.dumps(task_info)
+end
+
+-- 提供GeneralAdmin调用
+-- 由GeneralAdmin代替矿工提交挖矿结果  参数格式  平台任务ID|矿池操作员地址|矿池合约地址|挖矿结果ID
+function M:submitMiningResult(args:string)
+	let parsed = string.split(args, '|')
+	if (not parsed) or (#parsed ~= 4) then
+		return error("args format error")
+    end
+
+    let task_id = tostring(parsed[1])
+    let miningpool_operator = tostring(parsed[2])
+	let miningpool_contract = tostring(parsed[3])
+	let mining_result = tostring(parsed[4])
+
+	-- 判断矿池操作员地址是否合法
+	var valid_flag: bool = is_valid_address(miningpool_operator)
+	if valid_flag == false then
+		return error("invalid miningpool operator address")
+	end
+
+	-- 判断矿池合约地址是否合法
+	valid_flag = is_valid_contract_address(miningpool_contract)
+	if valid_flag == false then
+		return error("invalid miningpool contract address")
+	end
+
+	-- 调用者必须是GeneralAdmin
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	-- task_id出现在history_task_info中
+	var history_task_info_str: string = self.storage.historyTasks[task_id]
+	if history_task_info_str ~= nil then
+		return error("task_id is in history_task_info")
+	end
+
+	-- task_id不存在于current_task_info中
+	var current_task_info_str: string = self.storage.currentTasks[task_id] 
+	if current_task_info_str == nil then
+		return error("task_id is not in current_task_info")
+	end
+
+	var current_task_info: TaskInfoProgress = totable(json.loads(current_task_info_str))
+	if current_task_info == nil then
+		return error("assert: nil current_task_info")
+	end
+
+	var tmp_mining_result: string = current_task_info.mining_result[miningpool_contract]
+	if tmp_mining_result ~= nil then
+		return error("mining pool has already submited mining result before")
+	end
+	current_task_info.mining_result[miningpool_contract] = mining_result
+
+	-- 判断是否为指定挖矿矿池提交挖矿结果
+	var in_miner_array: bool = false
+	for k,v in pairs(totable(current_task_info.miner_array)) do
+		if v == miningpool_contract then
+			in_miner_array = true
+		end
+	end
+
+	if in_miner_array ~= true then
+		return error("invalid mining result")
+	end
+
+	self.storage.currentTasks[task_id] = json.dumps(current_task_info)
 
 end
+
+
+-- 提供GeneralAdmin调用
+-- 由GeneralAdmin代替商家结束挖矿任务 参数格式  平台任务ID|商家操作员地址|商家合约地址|矿池操作员地址1:激励金额1,矿池操作员地址2:激励金额2...
+function M:finishTask(args:string)
+	let parsed = string.split(args, '|')
+	if (not parsed) or (#parsed ~= 4) then
+		return error("args format error")
+	end
+	
+	let task_id = tostring(parsed[1])
+    let merchant_operator = tostring(parsed[2])
+	let merchant_contract = tostring(parsed[3])
+	let bonus_info_str = tostring(parsed[4])
+
+	let bonus_info_array = string.split(bonus_info_str, ',')
+	if (not bonus_info_array) then
+		return error("args format error")
+	end
+
+	var bonus_info_map: Map<int> = {}
+	var total_bonus: int = 0
+	for k,v in pairs(totable(bonus_info_array)) do
+		let parsed = string.split(tostring(v), ':')
+		if (not parsed) or (#parsed ~= 2) then
+			return error("args format error")
+		end
+		bonus_info_map[tostring(parsed[1])] = tointeger(parsed[2])
+		total_bonus = total_bonus + tointeger(parsed[2])
+	end 
+
+	-- 判断商家操作员地址是否合法
+	var valid_flag: bool = is_valid_address(merchant_operator)
+	if valid_flag == false then
+		return error("invalid merchant operator address")
+	end
+
+	-- 判断商家合约地址是否合法
+	valid_flag = is_valid_contract_address(merchant_contract)
+	if valid_flag == false then
+		return error("invalid merchant contract address")
+	end
+	
+	-- 调用者必须是GeneralAdmin
+	let admin_flag = isGeneralAdmin()
+	if admin_flag == false then
+		return error("not general admin, and has no authority")
+	end
+
+	-- task_id出现在history_task_info中
+	var history_task_info_str: string = self.storage.historyTasks[task_id]
+	if history_task_info_str ~= nil then
+		return error("task_id is in history_task_info")
+	end
+	
+	-- task_id不存在于current_task_info中
+	var current_task_info_str: string = self.storage.currentTasks[task_id] 
+	if current_task_info_str == nil then
+		return error("task_id is not in current_task_info")
+	end
+
+	var current_task_info: TaskInfoProgress = totable(json.loads(current_task_info_str))
+	if current_task_info == nil then
+		return error("assert: nil current_task_info")
+	end
+
+	if current_task_info.task_bonus ~= total_bonus then
+		return error("invalid total bonus value")
+	end
+
+	var task_info_his = TaskInfoHistory()
+	task_info_his.task_id = current_task_info.task_id
+	task_info_his.task_launcher = current_task_info.task_launcher
+	task_info_his.task_bonus = current_task_info.task_bonus
+	task_info_his.miner_array = current_task_info.miner_array
+	task_info_his.mining_result = current_task_info.mining_result
+	task_info_his.bonus_history = bonus_info_map
+
+	self.storage.historyTasks[task_id] = json.dumps(task_info_his)
+	self.storage.currentTasks[task_id] = nil
+
+	for k,v in pairs(totable(bonus_info_array)) do
+		let ret = transfer_from_contract_to_address(tostring(k), "CDC", tointeger(v))
+		if ret ~= 0 then
+			return error("transfer_from_contract_to_address fail")
+		end
+	end
+
+end
+
 
 return M
 
