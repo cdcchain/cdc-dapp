@@ -7,7 +7,7 @@ type State = 'NOT_EXIST' | 'IN_PROGRESS'
 type CommitteeMember = {
     applyer: string,                             -- record who produce this apply
     value: int,                                  -- record member value                                        
-    isAgreed: bool                               -- record whether agree apply
+    isPaid: bool                                 -- record whether fee paid
 }
 
 -- type Property: used to record properties of the committee
@@ -26,11 +26,7 @@ type  Property = {
 
     
     committeeFee: int ,                             -- record committee fee
-    appliedCommitteeMember: Map<string>,   -- record apply committee member
-    committeeMember: Map<string>,          -- record committee member
-
-
-    invitingArbitrator: Map<string>                 -- record the inviting arbitrator info
+    committeeMember: Map<string>                    -- record committee member
 
 }
 
@@ -39,7 +35,7 @@ type  Property = {
 var ArbitratorCommitteeContract = Contract<Property>()
 
 var INVALID_ARGS = "invalid args!"
-
+var ChainPrecision: int = 10000
 
 function  ArbitratorCommitteeContract:init()
 
@@ -53,11 +49,8 @@ function  ArbitratorCommitteeContract:init()
     self.storage.agreeProposalInfo = []
     self.storage.disagreeProposalInfo = []
 
-    self.storage.committeeFee = 1000000
-    self.storage.appliedCommitteeMember = {}
+    self.storage.committeeFee = tointeger(100 * ChainPrecision)
     self.storage.committeeMember = {}
-
-    self.storage.invitingArbitrator = {}
 
 end
 
@@ -237,58 +230,28 @@ function ArbitratorCommitteeContract:agree_proposal(_: string)
 end
 
 
-let function is_applied(self: table, contract_id: string)
-
-    for k, v in pairs(totable(self.storage.committeeMember)) do
-        if  k == contract_id then
-            return true
-        end
-    end
-
-    return false
-
-end
-
--- store the applied committee member(only allow contract call it)
-function ArbitratorCommitteeContract:store_apply(arg: string)
-
-    let prev_contract = get_prev_call_frame_contract_address()
-
-    if prev_contract == "" or prev_contract == nil then
-        return error("only allow call this function in contract!")
-    end
-
-    let parsed: Array<string> = totable(parse_args(arg))
-    let contract_id: string = parsed[1]
-    let operator_addr: string = parsed[2]
-    let member_value: int = tointeger(parsed[3])
-
-    if is_applied(self, contract_id) then
-        return error("member already applied!")
-    else
-        var member: CommitteeMember = {applyer = operator_addr, value = member_value, isAgreed = false}
-        self.storage.appliedCommitteeMember[contract_id] = tojsonstring(member)
-    end
-
-end
-
 -- agree committee member apply
-function ArbitratorCommitteeContract:agree_apply(contract_id: string)
+function ArbitratorCommitteeContract:agree_apply(arg: string)
 
     if self.storage.chair ~= caller_address then
         return error("you are not chair man, can't call this function!")
     end
 
-    let member: CommitteeMember = totable(json.loads(self.storage.appliedCommitteeMember[contract_id]))
-    member.isAgreed = true
+    let parsed: Array<string> = totable(parse_args(arg))
+    let contract_id: string = parsed[1]
+
+    var member: CommitteeMember = {applyer = parsed[2], value = tointeger(parsed[3]), isPaid = false}
+    let member_json_str: string = tojsonstring(member)
+
+    self.storage.committeeMember[contract_id] = member_json_str
 
 end
 
 let function is_agreed(self: table, operator_addr: string)
     
-    for k, v in pairs(totable(self.storage.appliedCommitteeMember)) do
+    for k, v in pairs(totable(self.storage.committeeMember)) do
         let member: CommitteeMember = totable(json.loads(tostring(v)))
-        if (operator_addr == member.applyer) and (member.isAgreed == true) then
+        if (operator_addr == member.applyer) and (member.isPaid == false) then
             return true
         end
     end
@@ -309,14 +272,15 @@ function ArbitratorCommitteeContract:on_deposit(amount: int)
     end
 
     var apply_key: string = ""
-    for k, v in pairs(totable(self.storage.appliedCommitteeMember)) do
+    for k, v in pairs(totable(self.storage.committeeMember)) do
         let member: CommitteeMember = totable(json.loads(tostring(v)))
         if caller_address == member.applyer then
             apply_key = tostring(k)
-            self.storage.committeeMember[apply_key] = tostring(v)
+            member.isPaid = true
+            let member_json_str: string = tojsonstring(member)
+            self.storage.committeeMember[apply_key] = member_json_str
         end
     end
-    self.storage.appliedCommitteeMember[apply_key] = nil
 
     let remain: int =  amount - self.storage.committeeFee
     if remain > 0 then
@@ -329,87 +293,26 @@ function ArbitratorCommitteeContract:on_deposit(amount: int)
 end
 
 
-
-let function is_inviting(self: table, contract_id: string)
-
-    for k, v in pairs(totable(self.storage.invitingArbitrator)) do
-        if k == contract_id then
-            return true
-        end
-    end
-
-    return false
-
-end
-
-function ArbitratorCommitteeContract:store_inviting_info(arg: string)
-
-    let prev_contract = get_prev_call_frame_contract_address()
-
-    if prev_contract == "" or prev_contract == nil then
-        return error("only allow call this function in contract!")
-    end
-
-    let parsed: Array<string> = totable(parse_args(arg))
-    let contract_id: string = parsed[1]
-    let name: string = parsed[2]
-    if not is_committee_member(self, name) then
-        return error("inviting arbitrator is not committee member!")
-    end
-
-    if is_inviting(self, contract_id) then
-        return error("member already inviting!")
-    else
-        self.storage.invitingArbitrator[contract_id] = name
-    end
-
-end
-
-
-function ArbitratorCommitteeContract:agree_invitation(arg: string)
+-- withdraw from contract balance
+function ArbitratorCommitteeContract:withdraw_from_contract(amount: int)
 
     if self.storage.chair ~= caller_address then
         return error("you are not chair man, can't call this function!")
     end
 
-    
-    let parsed: Array<string> = totable(parse_args(arg))
-    let contract_id: string = parsed[1]
-    let name: string = parsed[2]
-
-    let c = import_contract_from_address(contract_id)
-    if (not c) or (not c.store_arbitrator) then
-        return error("contract or funciton in contract not exist!")
-    end
-
-    var current_contract_id: string = tostring(get_current_contract_address())
-    var member_value: int = 0
-    for k, v in pairs(totable(self.storage.committeeMember)) do
-        let member: CommitteeMember = totable(json.loads(tostring(v)))
-        if name == member.applyer then
-            member_value = tointeger(member.value)
-        end
-    end
-    var param: string = current_contract_id..","..name..","..tostring(member_value)
-    c:store_arbitrator(param)
-
-    if  self.storage.invitingArbitrator[contract_id] == nil then
-        return error("inviting info something wrong!")
-    else
-        self.storage.invitingArbitrator[contract_id] == nil
+    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
+    if res ~= 0 then
+        return error("something is wrong when withdraw from contract!")
     end
 
 end
-
-
-
 
 
 offline function ArbitratorCommitteeContract:get_chair_man(_: string)
     let res = self.storage.chair
     return res
 end
-
 
 offline function ArbitratorCommitteeContract:get_proposal_state(_: string)
     let res = helper_get_proposal_state(self)
@@ -418,11 +321,6 @@ end
 
 offline function ArbitratorCommitteeContract:get_proposal_info(_: string)
     let res = helper_get_proposal_info(self)
-    return res
-end
-
-offline function ArbitratorCommitteeContract:get_applied_member_info(contract_id: string)
-    let res = tojsonstring(self.storage.appliedCommitteeMember[contract_id])
     return res
 end
 

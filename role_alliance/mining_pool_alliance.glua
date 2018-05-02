@@ -6,7 +6,7 @@ type State = 'NOT_EXIST' | 'IN_PROGRESS'
 -- type pool member: used to record applied pool member state
 type PoolMember = {
     applyer: string,                             -- record who produce this apply
-    isAgreed: bool                               -- record whether agree apply
+    isPaid: bool                                 -- record whether fee paid
 }
 
 -- type committee member: used to record applied committee member state
@@ -39,10 +39,9 @@ type  Property = {
 
     
     allianceFee: int,                           -- record alliance fee
-    appliedPoolMember: Map<string>,          -- record apply pool member(contract id) 
-    poolMember: Array<string>,                   -- record pool member(contract id)
+    poolMember: Map<string>,                    -- record pool member(contract id)
 
-    poolArbitrator: Map<string>     -- record committee arbitrator
+    poolArbitrator: Map<string>                 -- record committee arbitrator
 
 }
 
@@ -51,7 +50,8 @@ type  Property = {
 var PoolAllianceContract = Contract<Property>()
 
 var INVALID_ARGS = "invalid args!"
-var Precision: int = 100
+var SharePrecision: int = 100
+var ChainPrecision: int = 10000
 
 
 function  PoolAllianceContract:init()
@@ -62,21 +62,20 @@ function  PoolAllianceContract:init()
     self.storage.operators = []
     self.storage.isShareInit = false
 
-    self.storage.proposalSharePercent = 50 * Precision
+    self.storage.proposalSharePercent = 50 * SharePrecision
     self.storage.proposalShareState = 'NOT_EXIST'
     self.storage.proposalShareInfo = {}
     self.storage.agreeProposalShareInfo = []
     self.storage.disagreeProposalShareInfo = []
 
-    self.storage.proposalOperatorPercent = 50 * Precision
+    self.storage.proposalOperatorPercent = 50 * SharePrecision
     self.storage.proposalOperatorState = 'NOT_EXIST'
     self.storage.proposalOperatorInfo = []
     self.storage.agreeProposalOperatorInfo = []
     self.storage.disagreeProposalOperatorInfo = []
 
-    self.storage.allianceFee = 1000000
-    self.storage.appliedPoolMember = {}
-    self.storage.poolMember = []
+    self.storage.allianceFee = tointeger(100 * ChainPrecision)
+    self.storage.poolMember = {}
 
     self.storage.poolArbitrator = {}
 
@@ -105,7 +104,7 @@ let function parse_init_share_args(arg: string)
         total_share = total_share + tointeger(parsed[i+1])
     end
    
-    let tmp = Precision * 100
+    let tmp = SharePrecision * 100
     if total_share ~= tmp then
         return error(INVALID_ARGS.." total share is not 100%!")
     end
@@ -547,79 +546,33 @@ function PoolAllianceContract:disagree_operator_proposal(_: string)
 
 end
 
+-- agree pool member apply
+function PoolAllianceContract:agree_apply(arg: string)
 
-let function is_applied(self: table, contract_id: string)
-
-    for i, v in ipairs(totable(self.storage.poolMember)) do
-        if v == contract_id then
-            return true
-        end
-    end
-
-    return false
-
-end
-
--- store the applied pool member(only allow contract call it)
-function PoolAllianceContract:store_apply(arg: string)
-
-    let prev_contract = get_prev_call_frame_contract_address()
-
-    if prev_contract == "" or prev_contract == nil then
-        return error("only allow call this function in contract!")
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
     end
 
     let parsed: Array<string> = totable(parse_args(arg))
     let contract_id: string = parsed[1]
-    if is_applied(self, contract_id) then
-        return error("member already applied!")
-    else
-        
-        var member: PoolMember = {applyer = parsed[2], isAgreed = false}
-        let member_json_str: string = tojsonstring(member)
-        self.storage.appliedPoolMember[contract_id] = member_json_str
-    end
 
-end
-
--- agree pool member apply
-function PoolAllianceContract:agree_apply(contract_id: string)
-
-    if not is_contract_operator(self, caller_address) then
-        return error("you are not contract operator, can't call this function!")
-    end
-
-    var member: PoolMember = totable(json.loads(self.storage.appliedPoolMember[contract_id]))
-    if member == nil then
-       return error("something wrong when loading pool member from json string!") 
-    end
-
-    member.isAgreed = true
+    var member: PoolMember = {applyer = parsed[2], isPaid = false}
     let member_json_str: string = tojsonstring(member)
-    self.storage.appliedPoolMember[contract_id] = member_json_str
+
+    self.storage.poolMember[contract_id] = member_json_str
 
 end
 
--- disagree pool member apply
-function PoolAllianceContract:disagree_apply(contract_id: string)
-
-    if not is_contract_operator(self, caller_address) then
-        return error("you are not contract operator, can't call this function!")
-    end
-
-    self.storage.appliedPoolMember[contract_id] = nil
-
-end
 
 let function is_agreed(self: table, operator_addr: string)
     
-    for k, v in pairs(totable(self.storage.appliedPoolMember)) do
+    for k, v in pairs(totable(self.storage.poolMember)) do
         var member: PoolMember = totable(json.loads(tostring(v)))
         if member == nil then
             return error("something wrong when loading pool member from json string!") 
         end
 
-        if (operator_addr == member.applyer) and (member.isAgreed == true) then
+        if operator_addr == member.applyer then
             return true
         end
     end
@@ -639,20 +592,19 @@ function PoolAllianceContract:on_deposit(amount: int)
         return error("alliance operator not agree the apply yet!")
     end
 
-    var apply_key: string = ""
-    for k, v in pairs(totable(self.storage.appliedPoolMember)) do
+    for k, v in pairs(totable(self.storage.poolMember)) do
         var member: PoolMember = totable(json.loads(tostring(v)))
         if member == nil then
             return error("something wrong when loading pool member from json string!") 
         end
 
+        let member_key: string = tostring(k)
         if caller_address == member.applyer then
-            apply_key = tostring(k)
-            let len = #self.storage.poolMember
-            self.storage.poolMember[len + 1] = tostring(k)
+            member.isPaid = true
+            let member_json_str: string = tojsonstring(member)
+            self.storage.poolMember[member_key] = member_json_str
         end
     end
-    self.storage.appliedPoolMember[apply_key] = nil
 
     let remain: int =  amount - self.storage.allianceFee
     if remain > 0 then
@@ -664,9 +616,8 @@ function PoolAllianceContract:on_deposit(amount: int)
 
 end
 
-
--- invite arbitrator
-function PoolAllianceContract:invite_arbitrator(arg: string)
+-- agree arbitrator
+function PoolAllianceContract:agree_arbitrator(arg: string)
 
     if not is_contract_operator(self, caller_address) then
         return error("you are not contract operator, can't call this function!")
@@ -674,32 +625,12 @@ function PoolAllianceContract:invite_arbitrator(arg: string)
 
     let parsed: Array<string> = totable(parse_args(arg))
     let contract_id: string = parsed[1]
-
-    let c = import_contract_from_address(contract_id)
-    if (not c) or (not c.store_inviting_info) then
-        return error("contract or funciton in contract not exist!")
-    end
-
-    var param: string = contract_id..","..parsed[2]
-    c:store_inviting_info(param)
-
-end
-
--- store invited arbitrator info
-function PoolAllianceContract:store_arbitrator(arg: string)
-
-    let prev_contract = get_prev_call_frame_contract_address()
-
-    if prev_contract == "" or prev_contract == nil then
-        return error("only allow call this function in contract!")
-    end
-
-    let parsed: Array<string> = totable(parse_args(arg))
-    let contract_id: string = parsed[1]
     let arbitrator_name: string = parsed[2]
     let arbitrator_value: int = tointeger(parsed[3])
+
     var arb: CommitteeArbitrator = {name = arbitrator_name, value = arbitrator_value}
     let arb_json_str: string = tojsonstring(arb)
+
     self.storage.poolArbitrator[contract_id] = arb_json_str
 
 end
@@ -713,13 +644,29 @@ function PoolAllianceContract:pay_arbitrator(contract_id: string)
 
     let arb_json_str: string = tostring(self.storage.poolArbitrator[contract_id])
     var arb: CommitteeArbitrator = totable(json.loads(arb_json_str))
-    let res: int = transfer_from_contract_to_address(arb.name, "CDC", arb.value)
+
+    let pay_amount:int = tointeger(tointeger(arb.value) * ChainPrecision)
+    let res: int = transfer_from_contract_to_address(arb.name, "CDC", pay_amount)
     if res ~= 0 then
         return error("something is wrong when pay arbitrator!")
     end
 
 end
 
+-- withdraw from contract balance
+function PoolAllianceContract:withdraw_from_contract(amount: int)
+
+    if not is_contract_operator(self, caller_address) then
+        return error("you are not contract operator, can't call this function!")
+    end
+
+    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
+    if res ~= 0 then
+        return error("something is wrong when withdraw from contract!")
+    end
+
+end
 
 
 offline function PoolAllianceContract:get_pool_share_info(_: string)
@@ -747,7 +694,6 @@ offline function PoolAllianceContract:get_contract_operator_on_chain(_: string)
     return res
 end
 
-
 offline function PoolAllianceContract:get_share_proposal_state(_: string)
     let res = helper_get_share_proposal_state(self)
     return res
@@ -768,14 +714,13 @@ offline function PoolAllianceContract:get_operator_proposal_info(_: string)
     return res
 end
 
-
-offline function PoolAllianceContract:get_applied_member_info(contract_id: string)
-    let res = tojsonstring(self.storage.appliedPoolMember[contract_id])
+offline function PoolAllianceContract:get_alliance_member(_: string)
+    let res = tojsonstring(self.storage.poolMember)
     return res
 end
 
-offline function PoolAllianceContract:get_alliance_member(_: string)
-    let res = tojsonstring(self.storage.poolMember)
+offline function PoolAllianceContract:get_arbitrator_info(_: string)
+    let res = tojsonstring(self.storage.poolArbitrator)
     return res
 end
 
