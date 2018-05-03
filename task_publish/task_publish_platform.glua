@@ -76,7 +76,6 @@ let function isContractAllowed(self: table, addr: string)
 	return false
 end
 
-
 -- 提供GeneralAdmin调用
 -- 添加到allowedAddrCaller中
 function M:addAddrCallerAllowed(addr: string)
@@ -161,7 +160,6 @@ function M:delConCallerAllowed(addr: string)
 	table.remove(self.storage.allowedConCaller, addr)
 end
 
-
 -- 提供合约内所有用户调用
 -- 充值
 function M:on_deposit(amount: int)
@@ -172,7 +170,6 @@ function M:on_deposit(amount: int)
         self.storage.balance[caller_address] = user_balance + amount
     end
 end
-
 
 -- 提供合约内所有用户调用
 -- 取钱
@@ -253,6 +250,7 @@ function M:publishTask(args:string)
 	task_info.task_id = task_id
 	task_info.task_launcher = merchant_operator
 	task_info.task_bonus = task_bonus
+	task_info.miner_array = []
 	for k,v in pairs(totable(mining_pool_array)) do
 		valid_flag = is_valid_contract_address(tostring(v))
 		if valid_flag == false then
@@ -335,7 +333,6 @@ function M:submitMiningResult(args:string)
 
 end
 
-
 -- 提供GeneralAdmin调用
 -- 由GeneralAdmin代替商家结束挖矿任务 参数格式  平台任务ID|商家操作员地址|商家合约地址|矿池操作员地址1:激励金额1,矿池操作员地址2:激励金额2...
 function M:finishTask(args:string)
@@ -361,8 +358,8 @@ function M:finishTask(args:string)
 		if (not parsed) or (#parsed ~= 2) then
 			return error("args format error")
 		end
-		bonus_info_map[tostring(parsed[1])] = tointeger(parsed[2])
-		total_bonus = total_bonus + tointeger(parsed[2])
+		bonus_info_map[tostring(parsed[1])] = tointeger(tonumber(tostring(parsed[2])))
+		total_bonus = total_bonus + tointeger(tonumber(tostring(parsed[2])))
 	end 
 
 	-- 判断商家操作员地址是否合法
@@ -415,15 +412,85 @@ function M:finishTask(args:string)
 	self.storage.historyTasks[task_id] = json.dumps(task_info_his)
 	self.storage.currentTasks[task_id] = nil
 
-	for k,v in pairs(totable(bonus_info_array)) do
-		let ret = transfer_from_contract_to_address(tostring(k), "CDC", tointeger(v))
+	for k,v in pairs(totable(bonus_info_map)) do
+		let ret = transfer_from_contract_to_address(tostring(k), "CDC", tointeger(tonumber(tostring(v))))
 		if ret ~= 0 then
 			return error("transfer_from_contract_to_address fail")
 		end
 	end
-
 end
 
+-- 查询合约名
+offline function M:getContractName()
+	let ret = self.storage.name
+	return ret
+end
+
+-- 查询allowedAddrCaller
+offline function M:getallowedAddrCaller()
+	let ret = tojsonstring(self.storage.allowedAddrCaller)
+	return ret
+end
+
+-- 查询allowedConCaller
+offline function M:getallowedConCaller()
+	let ret = tojsonstring(self.storage.allowedConCaller)
+	return ret
+end
+
+-- 查询所有用户balance信息
+offline function M:getBalances()
+	let ret = tojsonstring(self.storage.balance)
+	return ret
+end
+
+-- 查询某个用户balance信息
+offline function M:getBalance(addr: string)
+	var balance:int = self.storage.balance[addr]
+	if balance == nil then
+		balance = 0
+	end
+	let ret = tojsonstring(balance)
+	return ret
+end
+
+-- 查询currentTasks中所有的的task_id
+offline function M:getCurrentTaskids()
+	var currentTaskids: Array<string> = []
+	for k,v in pairs(totable(self.storage.currentTasks)) do
+		currentTaskids[#currentTaskids] = tostring(k)
+	end
+	let ret = tojsonstring(currentTaskids)
+	return ret
+end
+
+-- 查询historyTasks中所有的的task_id
+offline function M:getHistoryTaskids()
+	var historyTaskids: Array<string> = []
+	for k,v in pairs(totable(self.storage.historyTasks)) do
+		historyTaskids[#historyTaskids] = tostring(k)
+	end
+	let ret = tojsonstring(historyTaskids)
+	return ret
+end
+
+-- 从currentTasks中根据task_id查询
+offline function M:getCurrentTask(task_id: string)
+	var ret: string = tostring(self.storage.currentTasks[task_id])
+	if ret == nil then
+		ret = ""
+	end
+	return ret
+end
+
+-- 从historyTasks中根据task_id查询
+offline function M:getHistoryTask(task_id: string)
+	var ret: string = tostring(self.storage.historyTasks[task_id])
+	if ret == nil then
+		ret = ""
+	end
+	return ret
+end
 
 return M
 
