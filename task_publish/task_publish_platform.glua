@@ -1,4 +1,4 @@
-var Precision: int = 10000
+var Precision: int = 100000000
 
 -- 正在进行中的任务信息
 type TaskInfoProgress = {
