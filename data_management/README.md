@@ -1,8 +1,9 @@
 # user_receipt_data 用户小票数据
----------------------------------------------------------------
 
 <br />
+
 ### online interface:
+
 <br />
 
 ###### addAddrCallerAllowed(string)
@@ -36,7 +37,9 @@
 * 接口调用者: 拥有本合约操作权限的用户或合约
 
 <br />
+
 ### offline interface:
+
 <br />
 
 ###### verifyUserReceiptHash(string)
@@ -65,10 +68,11 @@
 <br />
 
 # mining_result_data 挖矿结果数据
----------------------------------------------------------------
 
 <br />
+
 ### online interface:
+
 <br />
 
 ###### addAddrCallerAllowed
@@ -102,7 +106,9 @@
 * 接口调用者: 拥有本合约操作权限的用户或合约
 
 <br />
+
 ### offline interface:
+
 <br />
 
 ###### verifyMiningResultHash
@@ -131,10 +137,11 @@
 <br />
 
 # ad_putting_feedback_data 广告投放反馈数据
----------------------------------------------------------------
 
 <br />
+
 ### online interface:
+
 <br />
 
 ###### addAddrCallerAllowed
@@ -168,7 +175,9 @@
 * 接口调用者: 拥有本合约操作权限的用户或合约
 
 <br />
+
 ### offline interface:
+
 <br />
 
 ###### verifyAdPuttingFeedbackHash
@@ -197,7 +206,6 @@
 <br />
 
 # ad_putting_result_data 广告投放反馈统计结果数据
----------------------------------------------------------------
 
 <br />
 ### online interface:
@@ -234,7 +242,9 @@
 * 接口调用者: 拥有本合约操作权限的用户或合约
 
 <br />
+
 ### offline interface:
+
 <br />
 
 ###### verifyAdPuttingResultHash
