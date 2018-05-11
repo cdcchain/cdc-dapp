@@ -1,119 +1,260 @@
-# user_receipt_data
+# user_receipt_data 用户小票数据
 ---------------------------
 
->online interface:
+<br />
+###online interface:
+<br />
 
-*	addAddrCallerAllowed
+######addAddrCallerAllowed(string)
+* 接口描述: 添加允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######addConCallerAllowed(string)
+* 接口描述: 添加允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	delAddrCallerAllowed
+######delAddrCallerAllowed(string)
+* 接口描述: 删除允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######delConCallerAllowed(string)
+* 接口描述: 删除允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	checkinUserReceiptHash	
+######checkinUserReceiptHash(string)	
+* 接口描述: 提交用户小票数据hash
+* 接口参数: 小票数据hash|备注信息
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
-*	abolishUserReceiptHash
+######abolishUserReceiptHash(string)
+* 接口描述: 撤销用户小票数据hash
+* 接口参数: 小票数据hash
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
->offline interface:
+<br />
+###offline interface:
+<br />
 
-*	verifyUserReceiptHash
+######verifyUserReceiptHash(string)
+* 接口描述: 校验用户小票数据hash是否在链上
+* 接口参数: 小票数据hash
+* 接口调用者: 任意用户
 
-*	getContractName
+######getContractName()
+* 接口描述: 获取合约名
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedAddrCaller
+######getallowedAddrCaller()
+* 接口描述: 获取允许操作本合约的用户地址
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedConCaller
+######getallowedConCaller()
+* 接口描述: 获取允许操作本合约的合约地址
+* 接口参数: 无
+* 接口调用者: 任意用户
+
 <br />
 <br />
 <br />
 <br />
 
-# mining_result_data
+# mining_result_data 挖矿结果数据
 ---------------------------
 
->online interface:
+<br />
+###online interface:
+<br />
 
-*	addAddrCallerAllowed
+######addAddrCallerAllowed
+* 接口描述: 添加允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######addConCallerAllowed
+* 接口描述: 添加允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	delAddrCallerAllowed
+######delAddrCallerAllowed
+* 接口描述: 删除允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######delConCallerAllowed
+* 接口描述: 删除允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	checkinMiningResultHash	
+######checkinMiningResultHash	
+* 接口描述: 提交挖矿结果数据hash
+* 接口参数: 挖矿结果数据hash|备注信息
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
-*	abolishMiningResultHash
+######abolishMiningResultHash
+* 接口描述: 撤销挖矿结果数据hash
+* 接口参数: 挖矿结果数据hash
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
->offline interface:
+<br />
+###offline interface:
+<br />
 
-*	verifyMiningResultHash
+######verifyMiningResultHash
+* 接口描述: 校验挖矿结果数据hash是否在链上
+* 接口参数: 挖矿结果数据hash
+* 接口调用者: 任意用户
 
-*	getContractName
+######getContractName
+* 接口描述: 获取合约名
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedAddrCaller
+######getallowedAddrCaller
+* 接口描述: 获取允许操作本合约的用户地址
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedConCaller
+######getallowedConCaller
+* 接口描述: 获取允许操作本合约的合约地址
+* 接口参数: 无
+* 接口调用者: 任意用户
+
 <br />
 <br />
 <br />
 <br />
 
-# ad_putting_feedback_data
+# ad_putting_feedback_data 广告投放反馈数据
 ---------------------------
 
->online interface:
+<br />
+###online interface:
+<br />
 
-*	addAddrCallerAllowed
+######addAddrCallerAllowed
+* 接口描述: 添加允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######addConCallerAllowed
+* 接口描述: 添加允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	delAddrCallerAllowed
+######delAddrCallerAllowed
+* 接口描述: 删除允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######delConCallerAllowed
+* 接口描述: 删除允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	checkinAdPuttingFeedbackHash
+######checkinAdPuttingFeedbackHash
+* 接口描述: 提交广告投放反馈数据hash
+* 接口参数: 广告投放反馈数据hash|备注信息
+* 接口调用者: 拥有本合约操作权限的用户或合约
 	
-*	abolishAdPuttingFeedbackHash
+######abolishAdPuttingFeedbackHash
+* 接口描述: 撤销广告投放反馈数据hash
+* 接口参数: 广告投放反馈数据hash
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
->offline interface:
+<br />
+###offline interface:
+<br />
 
-*	verifyAdPuttingFeedbackHash
+######verifyAdPuttingFeedbackHash
+* 接口描述: 校验广告投放反馈数据hash是否在链上
+* 接口参数: 广告投放反馈数据hash
+* 接口调用者: 任意用户
 
-*	getContractName
+######getContractName
+* 接口描述: 获取合约名
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedAddrCaller
+######getallowedAddrCaller
+* 接口描述: 获取允许操作本合约的用户地址
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedConCaller
+######getallowedConCaller
+* 接口描述: 获取允许操作本合约的合约地址
+* 接口参数: 无
+* 接口调用者: 任意用户
+
 <br />
 <br />
 <br />
 <br />
 
-# ad_putting_result_data
+# ad_putting_result_data 广告投放反馈统计结果数据
 ---------------------------
 
->online interface:
+<br />
+###online interface:
+<br />
 
-*	addAddrCallerAllowed
+######addAddrCallerAllowed
+* 接口描述: 添加允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######addConCallerAllowed
+* 接口描述: 添加允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	delAddrCallerAllowed
+######delAddrCallerAllowed
+* 接口描述: 删除允许操作本合约的用户地址
+* 接口参数: 用户地址
+* 接口调用者: 数据管理员
 
-*	addConCallerAllowed
+######addConCallerAllowed
+* 接口描述: 删除允许操作本合约的合约地址
+* 接口参数: 合约地址
+* 接口调用者: 数据管理员
 
-*	checkinAdPuttingResultHash	
+######checkinAdPuttingResultHash	
+* 接口描述: 提交广告投放反馈统计结果数据hash
+* 接口参数: 广告投放反馈统计结果数据hash|备注信息
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
-*	abolishAdPuttingResultHash
+######abolishAdPuttingResultHash
+* 接口描述: 撤销广告投放反馈统计结果数据hash
+* 接口参数: 广告投放反馈统计结果数据hash
+* 接口调用者: 拥有本合约操作权限的用户或合约
 
->offline interface:
+<br />
+###offline interface:
+<br />
 
-*	verifyAdPuttingResultHash
+######verifyAdPuttingResultHash
+* 接口描述: 校验广告投放反馈统计结果数据hash是否在链上
+* 接口参数: 广告投放反馈统计结果数据hash
+* 接口调用者: 任意用户
 
-*	getContractName
+######getContractName
+* 接口描述: 获取合约名
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedAddrCaller
+######getallowedAddrCaller
+* 接口描述: 获取允许操作本合约的用户地址
+* 接口参数: 无
+* 接口调用者: 任意用户
 
-*	getallowedConCaller
+######getallowedConCaller
+* 接口描述: 获取允许操作本合约的合约地址
+* 接口参数: 无
+* 接口调用者: 任意用户
+
+
