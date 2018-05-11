@@ -35,7 +35,7 @@ type  Property = {
 var ArbitratorCommitteeContract = Contract<Property>()
 
 var INVALID_ARGS = "invalid args!"
-var ChainPrecision: int = 10000
+var ChainPrecision: int = 100000000
 
 function  ArbitratorCommitteeContract:init()
 
@@ -261,10 +261,10 @@ let function is_agreed(self: table, operator_addr: string)
 end
 
 -- on_deposit: accept committee fee
-function ArbitratorCommitteeContract:on_deposit(amount: int)
+function ArbitratorCommitteeContract:on_deposit(amount: string)
 
-    if amount < self.storage.committeeFee then
-        return error("committee fee not enough!")
+    if tointeger(amount) ~= self.storage.committeeFee then
+        return error("committee fee not correct!")
     end
 
     if not is_agreed(self, caller_address) then
@@ -282,25 +282,17 @@ function ArbitratorCommitteeContract:on_deposit(amount: int)
         end
     end
 
-    let remain: int =  amount - self.storage.committeeFee
-    if remain > 0 then
-        let res: int = transfer_from_contract_to_address(caller_address, "CDC", remain)
-        if res ~= 0 then
-            return error("something is wrong when transfer back extra committee fee!")
-        end
-    end   
-
 end
 
 
 -- withdraw from contract balance
-function ArbitratorCommitteeContract:withdraw_from_contract(amount: int)
+function ArbitratorCommitteeContract:withdraw_from_contract(amount: string)
 
     if self.storage.chair ~= caller_address then
         return error("you are not chair man, can't call this function!")
     end
 
-    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let pay_amount:int = tointeger(tointeger(amount) * ChainPrecision)
     let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
     if res ~= 0 then
         return error("something is wrong when withdraw from contract!")

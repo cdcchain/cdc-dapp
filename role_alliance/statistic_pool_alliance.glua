@@ -51,7 +51,7 @@ var StatisticAllianceContract = Contract<Property>()
 
 var INVALID_ARGS = "invalid args!"
 var SharePrecision: int = 100
-var ChainPrecision: int = 10000
+var ChainPrecision: int = 100000000
 
 
 function  StatisticAllianceContract:init()
@@ -582,10 +582,10 @@ let function is_agreed(self: table, operator_addr: string)
 end
 
 -- on_deposit: accept alliance fee
-function StatisticAllianceContract:on_deposit(amount: int)
+function StatisticAllianceContract:on_deposit(amount: string)
 
-    if amount < self.storage.allianceFee then
-        return error("alliance fee not enough!")
+    if tointeger(amount) ~= self.storage.allianceFee then
+        return error("alliance fee not correct!")
     end
 
     if not is_agreed(self, caller_address) then
@@ -605,14 +605,6 @@ function StatisticAllianceContract:on_deposit(amount: int)
             self.storage.statisticMember[member_key] = member_json_str
         end
     end
-
-    let remain: int =  amount - self.storage.allianceFee
-    if remain > 0 then
-        let res: int = transfer_from_contract_to_address(caller_address, "CDC", remain)
-        if res ~= 0 then
-            return error("something is wrong when transfer back extra alliance fee!")
-        end
-    end   
 
 end
 
@@ -654,13 +646,13 @@ function StatisticAllianceContract:pay_arbitrator(contract_id: string)
 end
 
 -- withdraw from contract balance
-function StatisticAllianceContract:withdraw_from_contract(amount: int)
+function StatisticAllianceContract:withdraw_from_contract(amount: string)
 
     if not is_contract_operator(self, caller_address) then
         return error("you are not contract operator, can't call this function!")
     end
 
-    let pay_amount:int = tointeger(amount * ChainPrecision)
+    let pay_amount:int = tointeger(tointeger(amount) * ChainPrecision)
     let res: int = transfer_from_contract_to_address(caller_address, "CDC", pay_amount)
     if res ~= 0 then
         return error("something is wrong when withdraw from contract!")
